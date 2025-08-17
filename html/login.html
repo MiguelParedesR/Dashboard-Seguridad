@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login - Agentes TPP</title>
+  <link rel="stylesheet" href="../css/login.css">
+</head>
+<body>
+  <div class="login-container">
+    <h1>Acceso Agentes TPP</h1>
+    <form id="loginForm">
+      <!-- Opción 1: Acceso por DNI -->
+      <div class="form-group">
+        <label for="dni">DNI:</label>
+        <input type="text" id="dni" name="dni" placeholder="Ingresa tu DNI" required>
+      </div>
+
+      <button type="submit" class="btn-login">Ingresar</button>
+    </form>
+
+    <hr>
+
+    <!-- Opción 2: Acceso por reconocimiento facial -->
+    <div class="form-group">
+      <button id="faceLogin" class="btn-facial">Ingresar con reconocimiento facial</button>
+    </div>
+
+    <p id="errorMessage" class="error"></p>
+  </div>
+
+  <script src="../js/login.js"></script>
+</body>
+</html>
