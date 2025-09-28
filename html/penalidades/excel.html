@@ -3,65 +3,158 @@
 
 <head>
     <meta charset="UTF-8" />
-    <title>Exportar Penalidades a Excel</title>
+    <title>Exportar Excel — Asistencia & Penalidades</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- CSS del módulo (tema claro) -->
     <link rel="stylesheet" href="../../css/penalidades/excel.css" />
+    <!-- Supabase y SheetJS -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
-    <!-- SheetJS para crear .xlsx -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 
 <body>
-    <main class="container">
-        <h1>Exportador de Penalidades</h1>
+    <main class="wrap">
 
-        <section class="card">
-            <div class="filters">
-                <div class="field">
-                    <label>Empresa</label>
-                    <select id="empresa">
-                        <option value="">Todas</option>
-                    </select>
-                </div>
-                <div class="field">
-                    <label>Desde</label>
-                    <input type="date" id="desde" />
-                </div>
-                <div class="field">
-                    <label>Hasta</label>
-                    <input type="date" id="hasta" />
-                </div>
-                <div class="actions">
-                    <button id="btnPreview">Previsualizar</button>
-                    <button id="btnExport">Exportar a Excel</button>
-                    <!-- <button id="btnCSV">Exportar CSV</button> -->
-                </div>
+        <!-- HOME: Tarjetas centradas -->
+        <section id="home" class="home">
+            <div class="cards">
+                <button class="card home-card" id="cardAsis">
+                    <div class="card-icon">🕒</div>
+                    <div class="card-title">Reporte Asistencia</div>
+                    <div class="card-sub">Tardanzas con penalidad (S/.)</div>
+                </button>
+
+                <button class="card home-card" id="cardPen">
+                    <div class="card-icon">🧾</div>
+                    <div class="card-title">Reporte Penalidades</div>
+                    <div class="card-sub">Penalidades aplicadas (S/.)</div>
+                </button>
             </div>
         </section>
 
-        <section class="card">
-            <h2>Previsualización (máx. 100 filas)</h2>
+        <!-- VIEW: Contenedor expandible -->
+        <section id="view" class="view hidden">
+
+            <!-- Header vista activa -->
+            <div class="view-header">
+                <button id="btnBack" class="btn back">← Regresar</button>
+                <div class="vh-titles">
+                    <h2 id="vhTitle">—</h2>
+                    <div id="vhSub" class="vh-sub">—</div>
+                </div>
+                <div class="vh-actions">
+                    <button id="btnAsisLoad" class="btn ghost hidden">Cargar Asistencia</button>
+                    <button id="btnAsisDownload" class="btn hidden">Descargar Asistencia (Excel)</button>
+
+                    <button id="btnPenLoad" class="btn ghost hidden">Cargar Penalidades</button>
+                    <button id="btnPenDownload" class="btn hidden">Descargar Penalidades (Excel)</button>
+                </div>
+            </div>
+
+            <!-- Filtros -->
+            <div class="filters">
+                <div class="row">
+                    <label>Empresa</label>
+                    <select id="fEmpresa">
+                        <option value="">Todas las empresas</option>
+                    </select>
+                </div>
+
+                <div class="row">
+                    <label>Local</label>
+                    <select id="fLocal">
+                        <option value="">Todos los locales</option>
+                        <option>TPP1</option>
+                        <option>TPP2</option>
+                        <option>TPP3</option>
+                        <option>TPP4</option>
+                        <option>ANEXO</option>
+                    </select>
+                </div>
+
+                <div class="row">
+                    <label>Desde</label>
+                    <input type="date" id="fDesde" />
+                </div>
+
+                <div class="row">
+                    <label>Hasta</label>
+                    <input type="date" id="fHasta" />
+                </div>
+
+                <!-- Dropdown multiselección (solo Asistencia) -->
+                <div class="row grow" id="estadoBox">
+                    <label>Estado</label>
+                    <div class="multi">
+                        <button id="multiBtn" class="multi-btn" aria-haspopup="true" aria-expanded="false">
+                            Seleccionar estados
+                            <span class="multi-badge" id="multiBadge">Todos</span>
+                        </button>
+                        <div id="multiMenu" class="multi-menu" role="menu" hidden>
+                            <label class="opt"><input type="checkbox" data-state="all" checked /> Todos</label>
+                            <label class="opt"><input type="checkbox" data-state="puntual" checked />
+                                Puntualidad</label>
+                            <label class="opt"><input type="checkbox" data-state="tardanza" checked /> Tardanza</label>
+                            <label class="opt"><input type="checkbox" data-state="falto" checked /> Faltos</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- KPIs + Total -->
+            <div class="statebar">
+                <div class="kpis">
+                    <div class="kpi">
+                        <div class="kpi-label">Rango</div>
+                        <div class="kpi-value" id="kpiRange">—</div>
+                    </div>
+                    <div class="kpi">
+                        <div class="kpi-label">Filas</div>
+                        <div class="kpi-value" id="kpiCount">0</div>
+                    </div>
+                </div>
+                <div class="totalbar">
+                    <div class="total-label">Total Penalidades</div>
+                    <div class="total-value" id="totalMonto">S/ 0.00</div>
+                </div>
+            </div>
+
+            <div id="loading" class="loading" hidden></div>
+
+            <!-- Tabla preview -->
             <div class="table-wrap">
-                <table id="tablaPreview">
+                <table id="tblPreview">
                     <thead>
-                        <tr>
-                            <th>Fecha</th>
-                            <th>Empresa</th>
-                            <th>Agente</th>
-                            <th>DNI</th>
-                            <th>Penalidad</th>
-                            <th>Monto (S/.)</th>
-                            <th>Observaciones</th>
-                            <th>Evidencias (URLs)</th>
-                        </tr>
+                        <tr id="theadRow"><!-- dinámico --></tr>
                     </thead>
-                    <tbody><!-- filas dinámicas --></tbody>
+                    <tbody><!-- dinámico --></tbody>
                 </table>
+                <div id="hint" class="hint">Elige el rango de fechas y presiona “Cargar …” para ver el preview.</div>
+            </div>
+
+            <!-- Paginación simple (cliente) -->
+            <div class="paginator">
+                <div class="left">
+                    <label class="sr">Tamaño de página</label>
+                    <select id="pageSize">
+                        <option>10</option>
+                        <option selected>20</option>
+                        <option>50</option>
+                    </select>
+                </div>
+                <div class="right">
+                    <button id="btnPrev" class="pagebtn">Anterior</button>
+                    <span id="pageInfo" class="sr">Página 1</span>
+                    <button id="btnNext" class="pagebtn">Siguiente</button>
+                </div>
             </div>
         </section>
     </main>
 
+    <!-- Config y Supabase client -->
     <script src="../../config.js"></script>
     <script src="../../js/core/supabaseClient.js"></script>
+    <!-- Lógica del módulo -->
     <script src="../../js/penalidades/excel.js"></script>
 </body>
 
