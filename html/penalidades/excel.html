@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Exportar Penalidades a Excel</title>
+    <link rel="stylesheet" href="../../css/penalidades/excel.css" />
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+    <!-- SheetJS para crear .xlsx -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+
+<body>
+    <main class="container">
+        <h1>Exportador de Penalidades</h1>
+
+        <section class="card">
+            <div class="filters">
+                <div class="field">
+                    <label>Empresa</label>
+                    <select id="empresa">
+                        <option value="">Todas</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label>Desde</label>
+                    <input type="date" id="desde" />
+                </div>
+                <div class="field">
+                    <label>Hasta</label>
+                    <input type="date" id="hasta" />
+                </div>
+                <div class="actions">
+                    <button id="btnPreview">Previsualizar</button>
+                    <button id="btnExport">Exportar a Excel</button>
+                    <!-- <button id="btnCSV">Exportar CSV</button> -->
+                </div>
+            </div>
+        </section>
+
+        <section class="card">
+            <h2>Previsualización (máx. 100 filas)</h2>
+            <div class="table-wrap">
+                <table id="tablaPreview">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Empresa</th>
+                            <th>Agente</th>
+                            <th>DNI</th>
+                            <th>Penalidad</th>
+                            <th>Monto (S/.)</th>
+                            <th>Observaciones</th>
+                            <th>Evidencias (URLs)</th>
+                        </tr>
+                    </thead>
+                    <tbody><!-- filas dinámicas --></tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <script src="../../config.js"></script>
+    <script src="../../js/core/supabaseClient.js"></script>
+    <script src="../../js/penalidades/excel.js"></script>
+</body>
+
+</html>

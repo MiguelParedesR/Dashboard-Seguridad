@@ -1,0 +1,875 @@
+:root {
+    --bg: #f5f7fb;
+    --card: #ffffff;
+    --txt: #1f2d3d;
+    --muted: #667085;
+    --border: #e6eaf2;
+    --primary: #0b63f6;
+    --primary-ghost: #e8f0ff;
+    --ok: #16a34a;
+    --danger: #ef4444;
+    --cyan: #06b6d4;
+    --blue: #2563eb;
+    --red: #dc2626;
+
+    /* Capas de superposición (para asegurar que los modales estén encima del thead sticky) */
+    --z-sticky: 10;
+    --z-modal: 10000;
+    --z-lightbox: 11000;
+    --z-notify: 12000;
+}
+
+* {
+    box-sizing: border-box
+}
+
+html,
+body {
+    height: 100%
+}
+
+body {
+    margin: 0;
+    font-family: Inter, system-ui, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--txt)
+}
+
+.wrap {
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    gap: 20px;
+    padding: 24px;
+    min-height: 100vh;
+    align-items: start;
+    /* asegura alineación superior consistente */
+}
+
+.panel {
+    position: sticky;
+    top: 24px;
+    height: fit-content
+}
+
+h1 {
+    margin: 0 0 12px;
+    font-size: 1.3rem
+}
+
+h2 {
+    margin: 0;
+    font-size: 1.1rem
+}
+
+.card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, .05)
+}
+
+.card.stretch {
+    display: flex;
+    flex-direction: column;
+    min-height: calc(100vh - 48px)
+}
+
+.row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin: 10px 0;
+    flex-wrap: wrap
+}
+
+.row>label {
+    min-width: 120px;
+    color: var(--muted)
+}
+
+input[type="text"],
+input[type="datetime-local"],
+select,
+textarea {
+    flex: 1;
+    min-width: 220px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: #fff;
+    color: var(--txt);
+    outline: none;
+    transition: border .15s ease, box-shadow .15s ease;
+}
+
+input[type="text"]:focus,
+input[type="datetime-local"]:focus,
+select:focus,
+textarea:focus {
+    border-color: #cbd5ff;
+    box-shadow: 0 0 0 3px #e9efff;
+}
+
+textarea {
+    resize: vertical
+}
+
+.inline {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--muted)
+}
+
+.hidden {
+    display: none
+}
+
+.actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px
+}
+
+button {
+    border: 0;
+    border-radius: 10px;
+    padding: 10px 12px;
+    cursor: pointer;
+    font-weight: 600;
+    letter-spacing: .2px
+}
+
+#btnGuardar {
+    background: var(--primary);
+    color: #fff
+}
+
+button.secondary {
+    background: #f3f4f6;
+    color: #374151
+}
+
+button.ghost {
+    background: var(--primary-ghost);
+    color: #174ea6
+}
+
+button.danger {
+    background: var(--danger);
+    color: #fff
+}
+
+button:hover {
+    filter: brightness(1.03)
+}
+
+.grid .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px
+}
+
+.grid .toolbar h2 {
+    flex: 1
+}
+
+.filters {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap
+}
+
+.filters input[type="text"] {
+    min-width: 260px
+}
+
+.table-wrap {
+    overflow: auto;
+    max-height: 66vh;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: #fff
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse
+}
+
+th,
+td {
+    padding: 11px 10px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+    vertical-align: middle
+}
+
+th {
+    position: sticky;
+    top: 0;
+    background: #fafbff;
+    z-index: var(--z-sticky);
+    /* asegura capa por encima del contenido, pero debajo de modales */
+}
+
+td.actions {
+    display: flex;
+    gap: 8px;
+    justify-content: center
+}
+
+.icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: #fff
+}
+
+.icon-btn:hover {
+    background: #f6f8ff
+}
+
+.icon-eye {
+    color: var(--cyan)
+}
+
+.icon-edit {
+    color: var(--blue)
+}
+
+.icon-del {
+    color: var(--red)
+}
+
+.badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #eef6ff;
+    color: #0b63f6;
+    border: 1px solid #dbe7ff;
+    padding: 4px 8px;
+    border-radius: 999px;
+    font-size: .86rem;
+    font-weight: 600
+}
+
+.badge .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #60a5fa
+}
+
+.empty {
+    padding: 14px;
+    color: var(--muted);
+    text-align: center
+}
+
+.paginator {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 10px;
+    gap: 12px
+}
+
+.paginator .left,
+.paginator .right {
+    display: flex;
+    align-items: center;
+    gap: 8px
+}
+
+/* Uploader bonito */
+.uploader {
+    flex: 1;
+    min-width: 220px;
+    border: 1px dashed #cbd5e1;
+    border-radius: 12px;
+    background: #fff;
+    padding: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.uploader input[type="file"] {
+    position: absolute;
+    width: 0;
+    height: 0;
+    opacity: 0;
+    pointer-events: none
+}
+
+.uploader-cta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    pointer-events: none
+}
+
+.uploader-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: #eef2ff;
+    color: #2748e6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px
+}
+
+.muted {
+    color: #98a2b3;
+    font-size: .9rem
+}
+
+.previews {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 6px 0 0
+}
+
+.preview-thumb {
+    width: 64px;
+    height: 64px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #fff;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center
+}
+
+.preview-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover
+}
+
+/* Modal base */
+.modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, .4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    z-index: var(--z-modal);
+    /* Asegura superposición sobre el thead sticky */
+}
+
+.modal.hidden {
+    display: none
+}
+
+.modal-box {
+    width: 100%;
+    max-width: 520px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, .15)
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 14px
+}
+
+/* Galería */
+.modal-box.gallery {
+    max-width: 900px
+}
+
+.gallery-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px
+}
+
+.gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px;
+    max-height: 70vh;
+    overflow: auto
+}
+
+/* Mantengo el estilo para <a>, pero ahora se usa .thumb (button) también */
+.gallery-grid a,
+.gallery-grid .thumb {
+    display: block;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    background: #fff
+}
+
+.gallery-grid img {
+    width: 100%;
+    height: 140px;
+    object-fit: cover;
+    display: block
+}
+
+/* Filtros bonitos */
+.search-field {
+    position: relative
+}
+
+.search-field input {
+    padding-right: 36px
+}
+
+.search-icon {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    opacity: .7
+}
+
+.date-field input {
+    background: #fff linear-gradient(180deg, #fff, #fbfcff);
+    transition: transform .12s ease, box-shadow .12s ease, border .12s ease;
+}
+
+.date-field input:focus {
+    box-shadow: 0 0 0 4px #eaf1ff;
+    border-color: #c7d7ff;
+    transform: translateY(-1px);
+}
+
+/* Summary bar */
+.card-ghost {
+    background: #f7faff;
+    border: 1px dashed #cfe0ff;
+    margin-bottom: 12px;
+    border-radius: 12px;
+    padding: 12px;
+}
+
+.summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px
+}
+
+.summary-left {
+    display: flex;
+    gap: 20px
+}
+
+.kpi .kpi-label {
+    font-size: .86rem;
+    color: var(--muted)
+}
+
+.kpi .kpi-value {
+    font-weight: 800;
+    font-size: 1.2rem;
+    color: #0b63f6
+}
+
+.summary-right {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px
+}
+
+/* Evidencia con OJO y contador */
+.eye-badge {
+    --sz: 36px;
+    position: relative;
+    width: var(--sz);
+    height: var(--sz);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #e6fbff;
+    border: 1px solid #b7eff7;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: transform .12s ease, box-shadow .12s ease;
+    outline: none;
+    /* evita el focus outline por defecto */
+}
+
+.eye-badge:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 14px rgba(0, 0, 0, .08)
+}
+
+/* Focus visible más sutil solo dentro del botón (no en la tabla) */
+.eye-badge:focus-visible {
+    box-shadow: 0 0 0 3px #def7ff;
+}
+
+.eye-badge svg {
+    color: #06b6d4
+}
+
+.eye-count {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: .9rem;
+    color: #0e7490;
+    pointer-events: none;
+    text-shadow: 0 1px 0 #fff;
+}
+
+/* Iconos CRUD con color ya estaban, añade micro-animación */
+.icon-btn {
+    transition: transform .12s ease, box-shadow .12s ease
+}
+
+.icon-btn:hover {
+    transform: translateY(-1px)
+}
+
+/* Animaciones CRUD */
+@keyframes fadeInRow {
+    from {
+        opacity: 0;
+        transform: translateY(6px)
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0)
+    }
+}
+
+tr.added {
+    animation: fadeInRow .25s ease
+}
+
+@keyframes pulseOnce {
+    0% {
+        transform: scale(1)
+    }
+
+    50% {
+        transform: scale(1.02)
+    }
+
+    100% {
+        transform: scale(1)
+    }
+}
+
+.updated {
+    animation: pulseOnce .2s ease
+}
+
+/* Uploader hover */
+.uploader:hover {
+    border-color: #aac6ff;
+    box-shadow: 0 4px 14px rgba(23, 78, 166, .08)
+}
+
+.uploader.drag {
+    background: #f2f6ff;
+    border-color: #93b2ff
+}
+
+/* =========================
+   NUEVO: Date minimalista
+   ========================= */
+.fancy-date {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: #fff;
+    transition: box-shadow .15s ease, border .15s ease, transform .12s ease;
+}
+
+.fancy-date:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 14px rgba(0, 0, 0, .06);
+}
+
+.fancy-date:focus-within {
+    border-color: #cbd5ff;
+    box-shadow: 0 0 0 3px #e9efff;
+}
+
+.date-leading-icon {
+    opacity: .8;
+    font-size: 16px;
+}
+
+.fancy-date input[type="date"] {
+    border: none;
+    padding: 6px 4px;
+    min-width: 160px;
+    background: transparent;
+    outline: none;
+    color: var(--txt);
+}
+
+.fancy-date input[type="date"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    opacity: .8;
+}
+
+.date-trailing-clear {
+    background: #f2f4f8;
+    border: 1px solid #e5e7eb;
+    color: #475569;
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: transform .12s ease, background .12s ease;
+}
+
+.date-trailing-clear:hover {
+    transform: scale(1.05);
+    background: #eaf0ff;
+}
+
+/* =========================
+   NUEVO: Galería con botones
+   ========================= */
+.gallery-grid .thumb {
+    appearance: none;
+    -webkit-appearance: none;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: #fff;
+    padding: 0;
+    margin: 0;
+    width: 100%;
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+}
+
+.gallery-grid .thumb:hover {
+    transform: translateY(-2px);
+    border-color: #cfe0ff;
+    box-shadow: 0 8px 18px rgba(23, 78, 166, .12);
+}
+
+.gallery-grid .thumb img {
+    width: 100%;
+    height: 160px;
+    object-fit: cover;
+    display: block;
+    transition: transform .25s ease;
+}
+
+.gallery-grid .thumb:hover img {
+    transform: scale(1.03);
+}
+
+/* =========================
+   NUEVO: Lightbox interno
+   ========================= */
+.lightbox {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    z-index: var(--z-lightbox);
+    /* por encima del modal */
+}
+
+.lightbox.hidden {
+    display: none;
+}
+
+.lightbox-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, .55);
+    animation: lbFade .18s ease;
+}
+
+.lightbox-content {
+    position: relative;
+    background: #fff;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    padding: 8px;
+    max-width: 90vw;
+    max-height: 85vh;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, .25);
+    animation: lbPop .18s ease;
+}
+
+.lightbox-content img {
+    max-width: 86vw;
+    max-height: 78vh;
+    display: block;
+    object-fit: contain;
+    border-radius: 10px;
+}
+
+.lightbox-close {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+    background: #fff;
+    color: #111827;
+    cursor: pointer;
+    font-weight: 700;
+    transition: transform .12s ease, background .12s ease, box-shadow .12s ease;
+}
+
+.lightbox-close:hover {
+    transform: scale(1.05);
+    background: #f3f6ff;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, .1);
+}
+
+@keyframes lbFade {
+    from {
+        opacity: 0
+    }
+
+    to {
+        opacity: 1
+    }
+}
+
+@keyframes lbPop {
+    from {
+        opacity: 0;
+        transform: translateY(8px) scale(.98)
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1)
+    }
+}
+
+/* =========================
+   NUEVO: Notify modal creativo
+   ========================= */
+.notify {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-items: start center;
+    padding-top: 24px;
+    z-index: var(--z-notify);
+    /* por encima de todo */
+    background: transparent;
+}
+
+.notify.hidden {
+    display: none;
+}
+
+.notify .notify-box {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: #ffffff;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 12px 14px;
+    box-shadow: 0 18px 45px rgba(0, 0, 0, .16);
+    transform: translateY(-10px) scale(.98);
+    opacity: 0;
+    transition: transform .18s ease, opacity .18s ease;
+    min-width: 260px;
+    max-width: 520px;
+}
+
+.notify.show .notify-box {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+}
+
+.notify-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: #eef6ff;
+    display: grid;
+    place-items: center;
+    font-size: 18px;
+    color: #174ea6;
+}
+
+.notify-text .notify-title {
+    font-weight: 800;
+    margin-bottom: 2px;
+}
+
+.notify-text .notify-msg {
+    color: var(--muted);
+    font-size: .92rem;
+}
+
+.notify-close {
+    margin-left: auto;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+    background: #fff;
+    color: #111827;
+    cursor: pointer;
+    transition: transform .12s ease, background .12s ease, box-shadow .12s ease;
+}
+
+.notify-close:hover {
+    transform: scale(1.05);
+    background: #f3f6ff;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, .1);
+}
+
+/* Pequeños ajustes para cohesión visual */
+.date-field.fancy-date input {
+    min-width: 140px;
+}
+
+.filters .fancy-date {
+    padding: 6px 10px;
+}
+
+.filters .fancy-date input {
+    min-width: 120px;
+}
+
+/* Fin de adiciones */
