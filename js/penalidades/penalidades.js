@@ -1,5 +1,8 @@
 // Penalidades – módulo completo con: paginación, búsqueda, resumen, evidencias (ojo + contador),
 // uploader, animaciones, lightbox en galería y modal-notificación creativo (sin alert()).
+// + Buscador de agente (typeahead) con sugerencias en vivo y "Agregar nuevo".
+// + NUEVO: Compatibilidad de empresa por sinónimos (CORSEPRI S.A. ≈ CORSEPRISA; VICMER SECURITY ≈ VICMER)
+//          Aplica tanto en typeahead (agentes) como en el listado de penalidades (filtros).
 
 const $ = (id) => document.getElementById(id);
 let deleteId = null;
@@ -11,6 +14,19 @@ let lastPageHadLess = false;
 
 // Para paginación con filtrado en cliente
 let lastFilteredTotal = 0;
+
+// Cache de agentes por empresa_id
+const AGENTS_CACHE = new Map(); // empresaId -> [{id, nombre, dni}...]
+let taOpen = false; // estado del dropdown typeahead
+let taActiveIndex = -1; // índice activo para navegación con teclado
+let taCurrentItems = []; // items visibles en la lista
+let submitting = false;
+
+/** Sinónimos por nombre visible en UI */
+const EMPRESA_SYNONYMS = {
+    'CORSEPRI S.A.': ['CORSEPRISA', 'CORSEPRI', 'CORSEPRI S.A.'],
+    'VICMER SECURITY': ['VICMER', 'VICMER SECURITY']
+};
 
 // Debounce helper
 function debounce(fn, delay = 300) {
@@ -44,11 +60,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Carga inicial
     await cargarEmpresas();
     await cargarPenalidades();
+    setupTypeahead(); // <<< inicializa buscador de agentes
     await listar();
 
     // Panel izquierdo
-    $('empresa').addEventListener('change', (e) => cargarAgentes(e.target.value));
-    $('agenteManualToggle').addEventListener('change', toggleAgenteManual);
+    $('empresa').addEventListener('change', onEmpresaChange);
     $('penalidad').addEventListener('change', recalcularMontoPreview);
     $('formPenalidad').addEventListener('submit', onSubmit);
     $('btnCancelar').addEventListener('click', resetForm);
@@ -111,6 +127,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 });
 
+// =================== UTILS EMPRESA (SINÓNIMOS) ===================
+
+function getSelectedEmpresaName(selectId) {
+    const sel = $(selectId);
+    if (!sel) return null;
+    const opt = sel.options[sel.selectedIndex];
+    return (opt?.textContent || '').trim() || null;
+}
+function getEmpresaSynonymsBySelected(selectId) {
+    const name = getSelectedEmpresaName(selectId);
+    if (!name) return [];
+    return EMPRESA_SYNONYMS[name] || [name];
+}
+function buildOrEq(field, values) {
+    // Construye cadena para .or('field.eq.VAL1,field.eq.VAL2')
+    return values.map(v => `${field}.eq.${v}`).join(',');
+}
+
 // =================== DATA LOADERS ===================
 
 async function cargarEmpresas() {
@@ -121,17 +155,47 @@ async function cargarEmpresas() {
     $('fEmpresa').innerHTML = `<option value="">Todas las empresas</option>${opts}`;
 }
 
+/**
+ * Carga agentes de una empresa y los cachea por empresa_id (para typeahead).
+ * Si no encuentra por empresa_id (mismatch de nombres/ids entre ORIGEN/DESTINO),
+ * reintenta por nombre de empresa usando sinónimos (join + or).
+ */
 async function cargarAgentes(empresaId) {
-    const sel = $('agente');
-    if (!empresaId) { sel.innerHTML = '<option value="">Seleccionar agente...</option>'; return; }
-    const { data, error } = await supabase
+    if (!empresaId) { return; }
+    if (AGENTS_CACHE.has(empresaId)) return; // ya cacheado
+
+    // 1) intento por empresa_id (el ideal)
+    let { data, error } = await supabase
         .from('agentes_seguridad')
         .select('id,nombre,dni')
         .eq('empresa_id', empresaId)
         .eq('estado', 'activo')
         .order('nombre');
-    if (error) return console.error(error);
-    sel.innerHTML = '<option value="">Seleccionar agente...</option>' + (data || []).map(a => `<option value="${a.id}">${a.nombre} (${a.dni})</option>`).join('');
+
+    if (!error && data && data.length > 0) {
+        AGENTS_CACHE.set(empresaId, data);
+        return;
+    }
+
+    // 2) Fallback por nombre de empresa (sinónimos)
+    const synonyms = getEmpresaSynonymsBySelected('empresa');
+    if (synonyms.length === 0) return;
+
+    // Para filtrar por la tabla relacionada se usa join sintáctico y .or en columna relacionada
+    const orExpr = buildOrEq('empresas.nombre', synonyms);
+
+    const res2 = await supabase
+        .from('agentes_seguridad')
+        .select('id,nombre,dni,empresas!inner(nombre)')
+        .eq('estado', 'activo')
+        .or(orExpr) // empresas.nombre eq a cualquiera de los sinónimos
+        .order('nombre');
+
+    if (res2.error) {
+        console.error(res2.error);
+        return;
+    }
+    AGENTS_CACHE.set(empresaId, res2.data || []);
 }
 
 async function cargarPenalidades() {
@@ -157,12 +221,147 @@ async function obtenerUIT() {
     return Number(data.valor);
 }
 
-// =================== UI HELPERS ===================
+// =================== TYPEAHEAD UI ===================
 
-function toggleAgenteManual() {
-    const on = $('agenteManualToggle').checked;
-    $('agente').disabled = on;
-    $('agenteManual').classList.toggle('hidden', !on);
+function setupTypeahead() {
+    const input = $('agenteSearch');
+    const dd = $('taDropdown');
+    const list = $('taList');
+    const addBtn = $('taAddBtn');
+
+    // helpers
+    const openDD = () => { dd.classList.remove('hidden'); taOpen = true; };
+    const closeDD = () => { dd.classList.add('hidden'); taOpen = false; taActiveIndex = -1; };
+    const clearChoice = () => { $('agenteId').value = ''; input.dataset.manual = '0'; };
+
+    const renderList = (items, query) => {
+        taCurrentItems = items;
+        list.innerHTML = '';
+
+        if (!items.length) {
+            list.innerHTML = `<div class="ta-empty">Sin resultados para “${escapeHTML(query)}”.</div>`;
+            return;
+        }
+
+        list.innerHTML = items.map((a, idx) => {
+            const label = escapeHTML(a.nombre);
+            const dni = a.dni ? `<span class="dni">${escapeHTML(a.dni)}</span>` : '';
+            return `<div class="ta-item" role="option" data-idx="${idx}" tabindex="-1">${label}${dni}</div>`;
+        }).join('');
+
+        // wire click
+        Array.from(list.querySelectorAll('.ta-item')).forEach(el => {
+            el.addEventListener('click', () => {
+                const i = Number(el.getAttribute('data-idx'));
+                pickItem(i);
+            });
+        });
+    };
+
+    const pickItem = (i) => {
+        const item = taCurrentItems[i];
+        if (!item) return;
+        input.value = item.nombre;
+        $('agenteId').value = item.id;
+        input.dataset.manual = '0';
+        closeDD();
+    };
+
+    const doSearch = async () => {
+        const q = input.value.trim().toLowerCase();
+        clearChoice();
+
+        const empresaId = $('empresa').value;
+        if (!empresaId) { closeDD(); return; }
+
+        if (q.length < 2) { closeDD(); return; }
+
+        // asegura cache
+        await cargarAgentes(empresaId);
+        const src = AGENTS_CACHE.get(empresaId) || [];
+
+        // filtra por nombre o dni
+        const matches = src.filter(a => {
+            const n = (a.nombre || '').toLowerCase();
+            const d = (a.dni || '').toLowerCase();
+            return n.includes(q) || d.includes(q);
+        }).slice(0, 50);
+
+        renderList(matches, q);
+        openDD();
+    };
+
+    // eventos
+    input.addEventListener('input', debounce(doSearch, 180));
+    input.addEventListener('focus', () => {
+        if (input.value.trim().length >= 2) doSearch();
+    });
+
+    // Teclado ↑/↓/Enter/Escape
+    input.addEventListener('keydown', (e) => {
+        if (!taOpen) return;
+
+        const max = taCurrentItems.length - 1;
+        if (['ArrowDown', 'ArrowUp'].includes(e.key)) e.preventDefault();
+
+        if (e.key === 'ArrowDown') {
+            taActiveIndex = Math.min(max, taActiveIndex + 1);
+            updateActiveItem();
+        } else if (e.key === 'ArrowUp') {
+            taActiveIndex = Math.max(0, taActiveIndex - 1);
+            updateActiveItem();
+        } else if (e.key === 'Enter') {
+            if (taActiveIndex >= 0) {
+                e.preventDefault();
+                pickItem(taActiveIndex);
+            }
+        } else if (e.key === 'Escape') {
+            closeDD();
+        }
+    });
+
+    function updateActiveItem() {
+        const items = list.querySelectorAll('.ta-item');
+        items.forEach((el, idx) => {
+            el.classList.toggle('active', idx === taActiveIndex);
+            if (idx === taActiveIndex) {
+                el.scrollIntoView({ block: 'nearest' });
+            }
+        });
+    }
+
+    // Click fuera cierra
+    document.addEventListener('click', (e) => {
+        const ta = $('agenteTA');
+        if (!ta.contains(e.target)) closeDD();
+    });
+
+    // Agregar nuevo (manual)
+    addBtn.addEventListener('click', () => {
+        const name = input.value.trim();
+        if (!name) {
+            notify('warn', 'Agente', 'Escribe un nombre para agregar.');
+            return;
+        }
+        $('agenteId').value = '';         // sin id => manual
+        input.dataset.manual = '1';       // marcador manual
+        input.value = name;               // tal cual lo escribió
+        closeDD();
+        notify('info', 'Agente manual', 'Se usará el nombre ingresado tal cual.');
+    });
+
+    // Si cambian la empresa, limpiamos selección
+    $('empresa').addEventListener('change', () => {
+        input.value = '';
+        clearChoice();
+        closeDD();
+    });
+}
+
+function onEmpresaChange(e) {
+    // precarga cache para UX ágil (no bloqueante)
+    const empresaId = e.target.value;
+    if (empresaId) cargarAgentes(empresaId).catch(console.error);
 }
 
 async function recalcularMontoPreview() {
@@ -200,6 +399,7 @@ async function listar() {
     // Cuando hay texto de búsqueda, filtramos en cliente para evitar problemas de filtros sobre relaciones
     const useClientFilter = !!search;
 
+    // ---- Consulta base
     let q = supabase.from('penalidades_aplicadas')
         .select(`
       id, fecha, local, monto_calculado, observaciones,
@@ -224,8 +424,36 @@ async function listar() {
         q = q.range(start, end);
     }
 
-    const { data, error } = await q;
+    let { data, error } = await q;
     if (error) { console.error(error); return; }
+
+    // Fallback por nombre (sinónimos) si filtraste por empresa y no hubo data
+    if ((data || []).length === 0 && empresaId) {
+        // Quitamos el filtro estricto por empresa_id y reintentamos por nombre de empresa usando sinónimos
+        const synonyms = getEmpresaSynonymsBySelected('fEmpresa');
+        if (synonyms.length > 0) {
+            const orExpr = buildOrEq('empresas.nombre', synonyms);
+            let q2 = supabase.from('penalidades_aplicadas')
+                .select(`
+          id, fecha, local, monto_calculado, observaciones,
+          agente_nombre_manual, agente_id, empresa_id,
+          empresas (nombre),
+          agentes_seguridad (nombre, dni),
+          penalidades_catalogo (item, categoria, penalidad_nombre),
+          penalidades_evidencias (url)
+        `)
+                .order('fecha', { ascending: false })
+                .or(orExpr); // match por nombre de empresa
+
+            if (local) q2 = q2.eq('local', local);
+            if (timeMin) q2 = q2.gte('fecha', timeMin);
+            if (timeMax) q2 = q2.lte('fecha', timeMax);
+            if (useClientFilter) q2 = q2.limit(1000); else q2 = q2.range(start, end);
+
+            const res2 = await q2;
+            if (!res2.error) data = res2.data || [];
+        }
+    }
 
     let rows = data || [];
 
@@ -276,7 +504,6 @@ function renderTabla(rows) {
     tbody.innerHTML = rows.map(r => {
         const empresa = r.empresas?.nombre || '';
         const agente = r.agentes_seguridad?.nombre || r.agente_nombre_manual || '(sin nombre)';
-        const dni = r.agentes_seguridad?.dni ? ` (${r.agentes_seguridad.dni})` : '';
         const pen = r.penalidades_catalogo ? `${r.penalidades_catalogo.item}. ${r.penalidades_catalogo.penalidad_nombre}` : '';
         const cat = r.penalidades_catalogo?.categoria || '';
         const evids = (r.penalidades_evidencias || []).length;
@@ -285,7 +512,7 @@ function renderTabla(rows) {
       <td>${new Date(r.fecha).toLocaleString('es-PE')}</td>
       <td>${empresa}</td>
       <td>${r.local || ''}</td>
-      <td>${escapeHTML(agente)}${dni}</td>
+      <td>${escapeHTML(agente)}</td>
       <td>${badge(cat)}&nbsp;${escapeHTML(pen)}</td>
       <td style="text-align:right;">${Number(r.monto_calculado || 0).toFixed(2)}</td>
       <td style="text-align:center;">
@@ -359,8 +586,11 @@ function escapeHTML(v) { return (v ?? '').toString().replace(/[&<>"]/g, s => ({ 
 
 function resetForm() {
     $('formPenalidad').reset();
-    $('agente').disabled = false;
-    $('agenteManual').classList.add('hidden');
+    // limpia typeahead
+    $('agenteSearch').value = '';
+    $('agenteId').value = '';
+    $('agenteSearch').dataset.manual = '0';
+
     $('btnGuardar').textContent = 'Aplicar penalidad';
     $('btnCancelar').classList.add('hidden');
     $('editId').value = '';
@@ -423,50 +653,58 @@ async function subirEvidencias(penalidadAplicadaId) {
 
 async function onSubmit(e) {
     e.preventDefault();
-    const editId = $('editId').value || null;
+    if (submitting) return;
+    submitting = true;
 
-    const empresa_id = $('empresa').value;
-    const local = $('local').value;
-    const penalidad_id = $('penalidad').value;
-    const fechaStr = $('fecha').value;
-    const observaciones = $('observaciones').value || null;
+    try {
+        const editId = $('editId').value || null;
 
-    const manualOn = $('agenteManualToggle').checked;
-    const agente_id = manualOn ? null : ($('agente').value || null);
-    const agente_nombre_manual = manualOn ? ($('agenteManual').value || null) : null;
+        const empresa_id = $('empresa').value;
+        const local = $('local').value;
+        const penalidad_id = $('penalidad').value;
+        const fechaStr = $('fecha').value;
+        const observaciones = $('observaciones').value || null;
 
-    if (!empresa_id || !local || !penalidad_id || (!agente_id && !agente_nombre_manual)) {
-        notify('warn', 'Campos incompletos', 'Completa Empresa, Local, Penalidad y Agente (o manual).');
-        return;
-    }
+        const agente_id = $('agenteId').value || null;
+        const inputNombre = ($('agenteSearch').value || '').trim();
+        const isManual = (!agente_id && !!inputNombre);
+        const agente_nombre_manual = isManual ? inputNombre : null;
 
-    const payload = {
-        empresa_id, local, penalidad_id, observaciones,
-        fecha: fechaStr ? new Date(fechaStr).toISOString() : new Date().toISOString(),
-        agente_id, agente_nombre_manual
-    };
+        if (!empresa_id || !local || !penalidad_id || (!agente_id && !agente_nombre_manual)) {
+            notify('warn', 'Campos incompletos', 'Completa Empresa, Local, Penalidad y Agente (o escribe uno nuevo).');
+            return;
+        }
 
-    if (!editId) {
-        const { data, error } = await supabase
-            .from('penalidades_aplicadas')
-            .insert([payload])
-            .select('id')
-            .single();
-        if (error || !data) { console.error(error); notify('error', 'Error', 'No se pudo aplicar la penalidad.'); return; }
-        await subirEvidencias(data.id);
-        resetForm();
-        await listar();
-        notify('success', 'Registrado', 'La penalidad se registró correctamente.');
-    } else {
-        const { error } = await supabase
-            .from('penalidades_aplicadas')
-            .update(payload)
-            .eq('id', editId);
-        if (error) { console.error(error); notify('error', 'Error', 'No se pudo actualizar.'); return; }
-        await subirEvidencias(editId);
-        resetForm();
-        await listar();
-        notify('success', 'Actualizado', 'La penalidad se actualizó correctamente.');
+        const payload = {
+            empresa_id, local, penalidad_id, observaciones,
+            fecha: fechaStr ? new Date(fechaStr).toISOString() : new Date().toISOString(),
+            agente_id, agente_nombre_manual
+        };
+
+        if (!editId) {
+            const { data, error } = await supabase
+                .from('penalidades_aplicadas')
+                .insert([payload])
+                .select('id')
+                .single();
+            if (error || !data) { console.error(error); notify('error', 'Error', 'No se pudo aplicar la penalidad.'); return; }
+            await subirEvidencias(data.id);
+            resetForm();
+            await listar();
+            notify('success', 'Registrado', 'La penalidad se registró correctamente.');
+        } else {
+            const { error } = await supabase
+                .from('penalidades_aplicadas')
+                .update(payload)
+                .eq('id', editId);
+            if (error) { console.error(error); notify('error', 'Error', 'No se pudo actualizar.'); return; }
+            await subirEvidencias(editId);
+            resetForm();
+            await listar();
+            notify('success', 'Actualizado', 'La penalidad se actualizó correctamente.');
+        }
+    } finally {
+        submitting = false;
     }
 }
 
@@ -505,21 +743,34 @@ async function editarFila(id) {
 
     $('editId').value = data.id;
     $('empresa').value = data.empresa_id;
-    await cargarAgentes(data.empresa_id);
-    $('local').value = data.local || '';
 
-    if (data.agente_id) {
-        $('agenteManualToggle').checked = false; toggleAgenteManual();
-        $('agente').value = data.agente_id;
-    } else {
-        $('agenteManualToggle').checked = true; toggleAgenteManual();
-        $('agenteManual').value = data.agente_nombre_manual || '';
+    // Precarga cache para el typeahead y setea el nombre
+    if (data.empresa_id) {
+        await cargarAgentes(data.empresa_id);
+        const list = AGENTS_CACHE.get(data.empresa_id) || [];
+        if (data.agente_id) {
+            const f = list.find(a => a.id === data.agente_id);
+            if (f) {
+                $('agenteSearch').value = f.nombre;
+                $('agenteId').value = f.id;
+                $('agenteSearch').dataset.manual = '0';
+            } else {
+                $('agenteSearch').value = '';
+                $('agenteId').value = data.agente_id;
+                $('agenteSearch').dataset.manual = '0';
+            }
+        } else {
+            $('agenteSearch').value = data.agente_nombre_manual || '';
+            $('agenteId').value = '';
+            $('agenteSearch').dataset.manual = data.agente_nombre_manual ? '1' : '0';
+        }
     }
 
+    $('local').value = data.local || '';
     $('penalidad').value = data.penalidad_id;
     await recalcularMontoPreview();
     $('observaciones').value = data.observaciones || '';
-    $('fecha').value = data.fecha ? new Date(data.fecha).toISOString().slice(0, 16) : '';
+    $('fecha').value = data.fecha ? new Date(data.fecha).toISOString().slice(0, 10) : '';
 
     $('btnGuardar').textContent = 'Actualizar';
     $('btnCancelar').classList.remove('hidden');
@@ -642,3 +893,4 @@ function hideNotify() {
     modal.classList.remove('show');
     modal.classList.add('hidden');
 }
+// =================== ON LOAD ===================

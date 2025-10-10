@@ -1,10 +1,19 @@
-// excel.js — UI con home (cards) y vistas expansibles. Tema claro.
-// Requiere: config.js + supabaseClient.js (ya inicializa window.supabase)
+// excel.js — Home (cards) + vistas expandibles Asistencia / Penalidades.
+// Requiere: config.js + js/core/supabaseClient.js (window.supabase listo)
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
 
-// Estado
+// ================== COMPANY MAPPING (UI ↔ ORIGEN) ==================
+// Etiquetas visibles en UI -> nombre real en ORIGEN
+const UI_TO_ORIGIN = {
+    'CORSEPRI S.A.': 'CORSEPRISA',
+    'VICMER SECURITY': 'VICMER'
+};
+// Lista fija para el select Empresa (sin duplicados)
+const UI_COMPANIES = ['CORSEPRI S.A.', 'VICMER SECURITY'];
+
+// Estado UI
 let activeView = 'home';            // 'home' | 'asis' | 'pen'
 let currentPage = 1;
 let pageSize = 20;
@@ -12,7 +21,11 @@ let rowsCache = [];                 // cache de filas actuales (para paginado y 
 let selectedStates = new Set(['puntual', 'tardanza', 'falto']); // asistencia
 let multiOpen = false;
 
-// Init
+// Cabezera estándar (misma para ambas vistas; algunos campos vacíos en Penalidades)
+const TABLE_HEADERS = [
+    'Fecha', 'Turno', 'Empresa', 'Local', 'Agente', 'Hora de llegada', 'Horas sin cubrir', 'Penalidad (S/.)', 'Observaciones'
+];
+
 document.addEventListener('DOMContentLoaded', () => {
     // Home cards
     $('#cardAsis')?.addEventListener('click', () => openView('asis'));
@@ -21,10 +34,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // Back
     $('#btnBack')?.addEventListener('click', () => openView('home'));
 
-    // Botones vista
+    // Botones vista Asistencia
     $('#btnAsisLoad')?.addEventListener('click', loadAsistencia);
     $('#btnAsisDownload')?.addEventListener('click', downloadAsistencia);
 
+    // Botones vista Penalidades
     $('#btnPenLoad')?.addEventListener('click', loadPenalidades);
     $('#btnPenDownload')?.addEventListener('click', downloadPenalidades);
 
@@ -52,43 +66,39 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     $('#multiMenu')?.addEventListener('change', onMultiChange);
 
-    // Cargar combos iniciales
+    // Empresas (dos fijas, con mapping interno)
     preloadEmpresas();
+
+    // Cabeceras estándar
+    $('#theadRow').innerHTML = TABLE_HEADERS.map(h => `<th>${h}</th>`).join('');
 });
 
-// Abre vista
+// ---------- NAV ----------
 function openView(view) {
     activeView = view;
 
-    // Home vs View
     if (view === 'home') {
         $('#home')?.classList.remove('hidden');
         $('#view')?.classList.add('hidden');
         return;
     }
 
-    // Vista expandida
+    // Abrimos contenedor de vista y cerramos home
     $('#home')?.classList.add('hidden');
     $('#view')?.classList.remove('hidden');
 
-    // Header dinámico
-    if (view === 'asis') {
-        $('#vhTitle').textContent = 'Reporte Asistencia';
-        $('#vhSub').textContent = 'Tardanzas con penalidad (S/.)';
-        $('#btnAsisLoad').classList.remove('hidden');
-        $('#btnAsisDownload').classList.remove('hidden');
-        $('#btnPenLoad').classList.add('hidden');
-        $('#btnPenDownload').classList.add('hidden');
-        $('#estadoBox').classList.remove('hidden'); // multiselección visible
-    } else {
-        $('#vhTitle').textContent = 'Reporte Penalidades';
-        $('#vhSub').textContent = 'Penalidades aplicadas (S/.)';
-        $('#btnAsisLoad').classList.add('hidden');
-        $('#btnAsisDownload').classList.add('hidden');
-        $('#btnPenLoad').classList.remove('hidden');
-        $('#btnPenDownload').classList.remove('hidden');
-        $('#estadoBox').classList.add('hidden'); // ocultar multiselección
-    }
+    // Ajustes por vista
+    const isAsis = view === 'asis';
+    $('#vhTitle').textContent = isAsis ? 'Reporte Asistencia' : 'Reporte Penalidades';
+    $('#vhSub').textContent = isAsis ? 'Tardanzas con penalidad (S/.)' : 'Penalidades aplicadas (S/.)';
+    $('#kpiVista').textContent = isAsis ? 'Asistencia' : 'Penalidades';
+
+    // Botones por vista
+    $$('.view-only-asis').forEach(el => el.classList.toggle('hidden', !isAsis));
+    $$('.view-only-pen').forEach(el => el.classList.toggle('hidden', isAsis));
+
+    // Multiselección de estados solo en Asistencia
+    $('#estadoBox')?.classList.toggle('hidden', !isAsis);
 
     // Limpia preview
     rowsCache = [];
@@ -96,59 +106,53 @@ function openView(view) {
     $('#kpiRange').textContent = '—';
     $('#kpiCount').textContent = '0';
     $('#totalMonto').textContent = 'S/ 0.00';
-    $('#theadRow').innerHTML = '';
     $('#tblPreview tbody').innerHTML = '';
+    $('#hint').textContent = isAsis
+        ? 'Elige el rango de fechas y presiona “Cargar Asistencia” para ver el preview.'
+        : 'Elige el rango de fechas y presiona “Cargar Penalidades” para ver el preview.';
     $('#hint').classList.remove('hidden');
 }
 
-// ====== Loaders ======
-
-async function preloadEmpresas() {
-    try {
-        const { data, error } = await supabase.from('empresas').select('id,nombre').order('nombre');
-        if (error) throw error;
-        const opts = (data || []).map(e => `<option value="${e.id}">${e.nombre}</option>`).join('');
-        $('#fEmpresa').innerHTML = `<option value="">Todas las empresas</option>${opts}`;
-    } catch (err) { console.error('Empresas load error', err); }
+function preloadEmpresas() {
+    const opts = ['<option value="">Todas las empresas</option>']
+        .concat(UI_COMPANIES.map(label => `<option value="${label}">${label}</option>`))
+        .join('');
+    $('#fEmpresa').innerHTML = opts;
 }
 
+// ---------- UTILIDADES ----------
 function getFilters() {
-    const empresaId = $('#fEmpresa').value || null;
+    const empresaUI = $('#fEmpresa').value || null;
+    const empresaOrigin = empresaUI ? (UI_TO_ORIGIN[empresaUI] || empresaUI) : null;
     const local = $('#fLocal').value || null;
     const desde = $('#fDesde').value || null;
     const hasta = $('#fHasta').value || null;
-    return { empresaId, local, desde, hasta };
+    return { empresaOrigin, local, desde, hasta };
 }
-
-function setLoading(on) {
-    $('#loading').hidden = !on;
-}
-
+function setLoading(on) { $('#loading').hidden = !on; }
 function setRangeKPI(desde, hasta) {
     const d = desde || '—';
     const h = hasta || '—';
     $('#kpiRange').textContent = `${d} → ${h}`;
 }
-
 function setTotalMonto(val) {
     const n = Number(val || 0);
     $('#totalMonto').textContent = 'S/ ' + n.toFixed(2);
 }
-
 function openHint(on) {
     if (on) $('#hint').classList.remove('hidden');
     else $('#hint').classList.add('hidden');
 }
+function safe(v) { return (v ?? '').toString().replace(/[&<>"]/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[s])); }
+function dateStamp() {
+    const d = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}_${pad(d.getHours())}-${pad(d.getMinutes())}`;
+}
 
-// ====== Multiselect (Asistencia) ======
-function toggleMulti() {
-    multiOpen = !multiOpen;
-    $('#multiMenu').hidden = !multiOpen;
-}
-function closeMulti() {
-    multiOpen = false;
-    $('#multiMenu').hidden = true;
-}
+// ---------- MULTISELECT (Asistencia) ----------
+function toggleMulti() { multiOpen = !multiOpen; $('#multiMenu').hidden = !multiOpen; }
+function closeMulti() { multiOpen = false; $('#multiMenu').hidden = true; }
 function onMultiChange(e) {
     const t = e.target;
     if (t && t.type === 'checkbox') {
@@ -160,66 +164,54 @@ function onMultiChange(e) {
         } else {
             if (t.checked) selectedStates.add(key);
             else selectedStates.delete(key);
-            // Actualiza el "Todos"
             const all = $('#multiMenu input[data-state="all"]');
             const rest = ['puntual', 'tardanza', 'falto'].every(s => selectedStates.has(s));
             all.checked = rest;
         }
-        // Badge
         if (selectedStates.size === 3) $('#multiBadge').textContent = 'Todos';
         else if (selectedStates.size === 0) $('#multiBadge').textContent = 'Ninguno';
         else $('#multiBadge').textContent = Array.from(selectedStates).join(', ');
     }
 }
 
-// ====== Asistencia ======
+// ---------- CARGA ASISTENCIA ----------
 async function loadAsistencia() {
     try {
-        const { empresaId, local, desde, hasta } = getFilters();
+        const { empresaOrigin, local, desde, hasta } = getFilters();
         setRangeKPI(desde, hasta);
         setLoading(true);
 
-        // Trae data desde la vista nueva
         let q = supabase.from('asistencias_dashboard_ext')
             .select('fecha,turno,empresa,local,agente,hora_llegada,horas_sin_cubrir,penalidad_monto,observaciones');
 
-        if (empresaId) q = q.eq('empresa', (await getEmpresaNameById(empresaId)));
+        if (empresaOrigin) q = q.eq('empresa', empresaOrigin);  // match a ORIGEN
         if (local) q = q.eq('local', local);
         if (desde) q = q.gte('fecha', desde);
         if (hasta) q = q.lte('fecha', hasta);
 
-        // Filtros estado (si no están todos, filtramos por observaciones/tardanza o por monto)
-        const { data, error } = await q.limit(2000);
+        const { data, error } = await q.limit(5000);
         if (error) throw error;
 
         let rows = data || [];
 
-        // Estado: puntual/tardanza/falto
-        // - puntual: penalidad_monto = 0 y observaciones incluye "TARDANZA"? no. Puntual viene como 'TARDANZA' en algunos orígenes,
-        //   así que aquí usamos regla más robusta: puntual si penalidad_monto = 0 y (horas_sin_cubrir = '00:00' o minutos 0 en origen).
+        // Filtrado por estado (puntual/tardanza/falto)
         rows = rows.filter(r => {
             const obs = (r.observaciones || '').toLowerCase();
-            const isTardanza = r.penalidad_monto > 0 || /penalidad mayor a/i.test(obs) || /tardanza/i.test(obs);
+            const isTardanza = Number(r.penalidad_monto) > 0 || /penalidad/i.test(obs) || /tardanza/i.test(obs);
             const isPuntual = Number(r.penalidad_monto) === 0 && (r.horas_sin_cubrir === '00:00' || /puntual/i.test(obs));
-            const isFalto = /falto/i.test(obs) || /cubre falto/i.test(obs);
+            const isFalto = /falto/i.test(obs);
 
             let ok = false;
             if (isTardanza && selectedStates.has('tardanza')) ok = true;
             if (isPuntual && selectedStates.has('puntual')) ok = true;
             if (isFalto && selectedStates.has('falto')) ok = true;
 
-            // Si están todos seleccionados, no filtra
             if (selectedStates.size === 3) ok = true;
             return ok;
         });
 
         rowsCache = rows;
         currentPage = 1;
-
-        // Render headers Asistencia
-        $('#theadRow').innerHTML = [
-            'Fecha', 'Turno', 'Empresa', 'Local', 'Agente', 'Hora de llegada', 'Horas sin cubrir', 'Penalidad (S/.)', 'Observaciones'
-        ].map(h => `<th>${h}</th>`).join('');
 
         renderTable();
         openHint(false);
@@ -230,55 +222,65 @@ async function loadAsistencia() {
     }
 }
 
-async function getEmpresaNameById(id) {
-    // Intento directo de encontrar en el select ya cargado
-    const opt = $(`#fEmpresa option[value="${id}"]`);
-    if (opt) return opt.textContent;
-    // Fallback
-    const { data } = await supabase.from('empresas').select('nombre').eq('id', id).single();
-    return data?.nombre || null;
-}
-
-// ====== Penalidades ======
+// ---------- CARGA PENALIDADES ----------
 async function loadPenalidades() {
     try {
-        const { empresaId, local, desde, hasta } = getFilters();
+        const { empresaOrigin, local, desde, hasta } = getFilters();
         setRangeKPI(desde, hasta);
         setLoading(true);
 
-        // v_penalidades_export ya está creada (sin errores) y trae monto_calculado, empresa_nombre, etc.
-        let q = supabase.from('v_penalidades_export').select(`
-      fecha, empresa_nombre, local_norm, agente, monto_calculado, observaciones_calc
-    `);
+        // Traemos penalidades aplicadas + joins para nombres
+        let q = supabase.from('penalidades_aplicadas')
+            .select(`
+        fecha,
+        local,
+        observaciones,
+        monto_calculado,
+        agente_nombre_manual,
+        empresas ( nombre ),
+        agentes_seguridad ( nombre ),
+        penalidades_catalogo ( item, penalidad_nombre )
+      `)
+            .order('fecha', { ascending: false });
 
-        if (empresaId) {
-            const empName = await getEmpresaNameById(empresaId);
-            if (empName) q = q.eq('empresa_nombre', empName);
-        }
-        if (local) q = q.eq('local_norm', local);
+        // Filtros server-side simples
+        if (local) q = q.eq('local', local);
         if (desde) q = q.gte('fecha', desde);
         if (hasta) q = q.lte('fecha', hasta);
 
-        const { data, error } = await q.limit(2000);
+        const { data, error } = await q.limit(5000);
         if (error) throw error;
 
-        // Normaliza columnas al formato destino
-        const rows = (data || []).map(r => ({
-            fecha: r.fecha,
-            empresa: r.empresa_nombre,
-            local: r.local_norm,
-            agente: r.agente,
-            penalidad_monto: Number(r.monto_calculado || 0),
-            observaciones: r.observaciones_calc || ''
-        }));
+        // Filtro por empresa (por nombre ORIGEN) en cliente, usando join
+        let rows = (data || []).filter(r => {
+            if (!empresaOrigin) return true;
+            const emp = r.empresas?.nombre || null;
+            return emp === empresaOrigin;
+        });
+
+        // Normalizamos a la misma estructura de la tabla
+        rows = rows.map(r => {
+            const empresa = r.empresas?.nombre || '';
+            const agente = r.agentes_seguridad?.nombre || r.agente_nombre_manual || '(sin nombre)';
+            const item = r.penalidades_catalogo?.item;
+            const penName = r.penalidades_catalogo?.penalidad_nombre;
+            const obs = penName ? `${item}. ${penName}` : (r.observaciones || '');
+
+            return {
+                fecha: (r.fecha || '').slice(0, 10),
+                turno: '',                     // no aplica en penalidades (pedido: dejar la columna)
+                empresa,
+                local: r.local || '',
+                agente,
+                hora_llegada: '',              // no aplica
+                horas_sin_cubrir: '',          // no aplica
+                penalidad_monto: Number(r.monto_calculado || 0),
+                observaciones: obs
+            };
+        });
 
         rowsCache = rows;
         currentPage = 1;
-
-        // Render headers Penalidades
-        $('#theadRow').innerHTML = [
-            'Fecha', 'Empresa', 'Local', 'Agente', 'Penalidad (S/.)', 'Observaciones'
-        ].map(h => `<th>${h}</th>`).join('');
 
         renderTable();
         openHint(false);
@@ -289,7 +291,7 @@ async function loadPenalidades() {
     }
 }
 
-// ====== Render tabla + totales ======
+// ---------- RENDER TABLA + TOTALES ----------
 function renderTable() {
     const tbody = $('#tblPreview tbody');
     tbody.innerHTML = '';
@@ -301,40 +303,20 @@ function renderTable() {
     const end = Math.min(start + pageSize, total);
     const page = rowsCache.slice(start, end);
 
-    let sumPen = 0;
-
-    if (activeView === 'asis') {
-        // Fecha, Turno, Empresa, Local, Agente, Hora de llegada, Horas sin cubrir, Penalidad (S/.), Observaciones
-        tbody.innerHTML = page.map(r => {
-            const p = Number(r.penalidad_monto || 0);
-            sumPen += p;
-            return `<tr>
-        <td>${safe(r.fecha)}</td>
-        <td>${safe(r.turno)}</td>
-        <td>${safe(r.empresa)}</td>
-        <td>${safe(r.local)}</td>
-        <td>${safe(r.agente)}</td>
-        <td>${safe(r.hora_llegada)}</td>
-        <td>${safe(r.horas_sin_cubrir)}</td>
-        <td>S/ ${p.toFixed(2)}</td>
-        <td>${safe(r.observaciones)}</td>
-      </tr>`;
-        }).join('');
-    } else if (activeView === 'pen') {
-        // Fecha, Empresa, Local, Agente, Penalidad (S/.), Observaciones
-        tbody.innerHTML = page.map(r => {
-            const p = Number(r.penalidad_monto || 0);
-            sumPen += p;
-            return `<tr>
-        <td>${safe(r.fecha)}</td>
-        <td>${safe(r.empresa)}</td>
-        <td>${safe(r.local)}</td>
-        <td>${safe(r.agente)}</td>
-        <td>S/ ${p.toFixed(2)}</td>
-        <td>${safe(r.observaciones)}</td>
-      </tr>`;
-        }).join('');
-    }
+    tbody.innerHTML = page.map(r => {
+        const p = Number(r.penalidad_monto || 0);
+        return `<tr>
+      <td>${safe(r.fecha)}</td>
+      <td>${safe(r.turno)}</td>
+      <td>${safe(r.empresa)}</td>
+      <td>${safe(r.local)}</td>
+      <td>${safe(r.agente)}</td>
+      <td>${safe(r.hora_llegada)}</td>
+      <td>${safe(r.horas_sin_cubrir)}</td>
+      <td>S/ ${p.toFixed(2)}</td>
+      <td>${safe(r.observaciones)}</td>
+    </tr>`;
+    }).join('');
 
     // Total de toda la consulta (no solo de la página)
     const sumAll = rowsCache.reduce((acc, r) => acc + Number(r.penalidad_monto || 0), 0);
@@ -345,30 +327,17 @@ function renderTable() {
     $('#btnNext').disabled = (currentPage * pageSize >= total);
 }
 
-// ====== Exportar Excel ======
-
-function buildWorksheetData() {
-    if (activeView === 'asis') {
-        // Encabezados + filas
-        const header = ['Fecha', 'Turno', 'Empresa', 'Local', 'Agente', 'Hora de llegada', 'Horas sin cubrir', 'Penalidad (S/.)', 'Observaciones'];
-        const body = rowsCache.map(r => ([
-            r.fecha, r.turno, r.empresa, r.local, r.agente, r.hora_llegada, r.horas_sin_cubrir, Number(r.penalidad_monto || 0), r.observaciones
-        ]));
-        // Totales al final
-        const totalPen = rowsCache.reduce((acc, r) => acc + Number(r.penalidad_monto || 0), 0);
-        body.push([]);
-        body.push(['TOTALES', '', '', '', '', '', '', totalPen, '']);
-        return { header, body, title: 'Reporte Asistencia' };
-    } else {
-        const header = ['Fecha', 'Empresa', 'Local', 'Agente', 'Penalidad (S/.)', 'Observaciones'];
-        const body = rowsCache.map(r => ([
-            r.fecha, r.empresa, r.local, r.agente, Number(r.penalidad_monto || 0), r.observaciones
-        ]));
-        const totalPen = rowsCache.reduce((acc, r) => acc + Number(r.penalidad_monto || 0), 0);
-        body.push([]);
-        body.push(['TOTALES', '', '', '', totalPen, '']);
-        return { header, body, title: 'Reporte Penalidades' };
-    }
+// ---------- EXCEL ----------
+function buildWorksheetDataGeneric() {
+    // Estructura única para ambas vistas (coincide con tabla)
+    const header = TABLE_HEADERS.slice();
+    const body = rowsCache.map(r => ([
+        r.fecha, r.turno, r.empresa, r.local, r.agente, r.hora_llegada, r.horas_sin_cubrir, Number(r.penalidad_monto || 0), r.observaciones
+    ]));
+    const totalPen = rowsCache.reduce((acc, r) => acc + Number(r.penalidad_monto || 0), 0);
+    body.push([]);
+    body.push(['TOTALES', '', '', '', '', '', '', totalPen, '']);
+    return { header, body };
 }
 
 function stylizeSheet(ws, headerLen) {
@@ -379,7 +348,7 @@ function stylizeSheet(ws, headerLen) {
         if (!ws[addr]) continue;
         ws[addr].s = {
             font: { bold: true, color: { rgb: "FFFFFF" } },
-            fill: { fgColor: { rgb: "2563EB" } }, // brand azul
+            fill: { fgColor: { rgb: "2563EB" } },
             alignment: { horizontal: "center", vertical: "center" },
             border: { bottom: { style: "thin", color: { rgb: "E5E7EB" } } }
         };
@@ -390,9 +359,9 @@ function stylizeSheet(ws, headerLen) {
 }
 
 function downloadAsistencia() {
-    if (activeView !== 'asis' || rowsCache.length === 0) return;
+    if (rowsCache.length === 0) return;
     const wb = XLSX.utils.book_new();
-    const { header, body, title } = buildWorksheetData();
+    const { header, body } = buildWorksheetDataGeneric();
     const data = [header, ...body];
     const ws = XLSX.utils.aoa_to_sheet(data);
     stylizeSheet(ws, header.length);
@@ -401,21 +370,13 @@ function downloadAsistencia() {
 }
 
 function downloadPenalidades() {
-    if (activeView !== 'pen' || rowsCache.length === 0) return;
+    if (rowsCache.length === 0) return;
     const wb = XLSX.utils.book_new();
-    const { header, body, title } = buildWorksheetData();
+    const { header, body } = buildWorksheetDataGeneric();
     const data = [header, ...body];
     const ws = XLSX.utils.aoa_to_sheet(data);
     stylizeSheet(ws, header.length);
     XLSX.utils.book_append_sheet(wb, ws, 'Penalidades');
     XLSX.writeFile(wb, `Penalidades_${dateStamp()}.xlsx`);
 }
-
-// ====== Utils ======
-function safe(v) { return (v ?? '').toString().replace(/[&<>"]/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[s])); }
-function dateStamp() {
-    const d = new Date();
-    const pad = (n) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}_${pad(d.getHours())}-${pad(d.getMinutes())}`;
-}
-    
+// excel.js — fin

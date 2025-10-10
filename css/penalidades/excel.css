@@ -7,7 +7,6 @@
     --brand-ghost: #e5edff;
     --line: #e5e7eb;
     --ok: #16a34a;
-    --warn: #f59e0b;
     --shadow: 0 10px 30px rgba(0, 0, 0, .06);
     --rad: 16px;
 }
@@ -31,7 +30,7 @@ body {
     padding: 20px
 }
 
-/* HOME */
+/* HOME (cards centradas) */
 .home {
     display: flex;
     align-items: center;
@@ -144,30 +143,25 @@ body {
     background: #fff;
     border-radius: 10px;
     padding: 10px 12px;
-    cursor: pointer
+    cursor: pointer;
+    transition: box-shadow .12s ease, transform .06s ease
 }
 
 .btn:hover {
     background: #fafafa
 }
 
-.btn.ghost {
-    background: var(--brand-ghost);
-    border-color: #dbe3ff
+.btn:active {
+    transform: translateY(1px)
 }
 
 .btn.back {
     background: #fff
 }
 
-.btn.primary {
-    background: var(--brand);
-    color: #fff;
-    border-color: var(--brand)
-}
-
-.btn.primary:hover {
-    filter: brightness(.98)
+/* Filtros */
+section.card {
+    padding: 16px
 }
 
 .filters {
@@ -188,6 +182,46 @@ body {
     color: var(--muted)
 }
 
+/* Inputs / Selects elegantes */
+.filters select,
+.filters input[type="date"],
+.filters input[type="text"] {
+    appearance: none;
+    border: 1px solid var(--line);
+    background: #fff;
+    color: var(--ink);
+    border-radius: 12px;
+    padding: 10px 12px;
+    line-height: 1.2;
+    transition: border-color .12s ease, box-shadow .12s ease;
+    outline: none;
+    position: relative;
+}
+
+.filters select:focus,
+.filters input[type="date"]:focus,
+.filters input[type="text"]:focus {
+    border-color: #c7d2fe;
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, .08);
+}
+
+.filters select {
+    background-image:
+        linear-gradient(45deg, transparent 50%, #6b7280 50%),
+        linear-gradient(135deg, #6b7280 50%, transparent 50%),
+        linear-gradient(to right, #d1d5db, #d1d5db);
+    background-position:
+        calc(100% - 18px) calc(1em + 2px),
+        calc(100% - 13px) calc(1em + 2px),
+        calc(100% - 2.4em) .7em;
+    background-size:
+        5px 5px,
+        5px 5px,
+        1px 1.6em;
+    background-repeat: no-repeat;
+    padding-right: 38px;
+}
+
 .grow {
     grid-column: span 2
 }
@@ -202,11 +236,22 @@ body {
     justify-content: space-between;
     gap: 10px;
     width: 100%;
-    padding: 10px;
+    padding: 10px 12px;
     border: 1px solid var(--line);
-    border-radius: 10px;
+    border-radius: 12px;
     background: #fff;
-    cursor: pointer
+    cursor: pointer;
+    transition: border-color .12s ease, box-shadow .12s ease
+}
+
+.multi-btn:hover {
+    border-color: #d8def7
+}
+
+.multi-btn:focus {
+    outline: none;
+    border-color: #c7d2fe;
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, .08)
 }
 
 .multi-badge {
@@ -366,7 +411,16 @@ tbody tr:hover {
     background: #fff;
     border-radius: 999px;
     padding: 8px 12px;
-    cursor: pointer
+    cursor: pointer;
+    transition: box-shadow .12s ease, transform .06s ease
+}
+
+.pagebtn:hover {
+    box-shadow: 0 6px 20px rgba(0, 0, 0, .07)
+}
+
+.pagebtn:active {
+    transform: translateY(1px)
 }
 
 .pagebtn:disabled {
@@ -389,6 +443,8 @@ tbody tr:hover {
     }
 
     .vh-actions {
-        display: none
+        gap: 6px
     }
 }
+
+/* excel.css — fin */
