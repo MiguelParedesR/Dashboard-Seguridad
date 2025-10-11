@@ -1,62 +1,150 @@
+/* Estilos generales para todo el body */
 body {
     margin: 0;
     padding: 0;
-    font-family: Arial, sans-serif;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background: linear-gradient(135deg, #004aad, #1a73e8);
     color: #fff;
     height: 100vh;
     display: flex;
     justify-content: center;
     align-items: center;
-  }
-  
-  .login-container {
-    background: #ffffff10;
-    padding: 2rem;
-    border-radius: 15px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+}
+
+/* Contenedor principal del login */
+.login-container {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 3rem;
+    border-radius: 20px;
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
     text-align: center;
-    width: 350px;
-  }
-  
-  h1 {
+    width: 100%;
+    max-width: 450px;
+    transition: all 0.3s ease;
+    overflow: hidden;
+}
+
+/* Título principal */
+h1 {
     margin-bottom: 2rem;
-  }
-  
-  .login-box {
+    font-size: 1.8rem;
+    color: #fff;
+    font-weight: bold;
+}
+
+/* Botones de selección de rol */
+#roleSelection {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 2rem;
+}
+
+.btn-role {
+    width: 30%;
+    padding: 1rem;
+    border: none;
+    border-radius: 8px;
+    background-color: #004aad;
+    color: #fff;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.btn-role:hover {
+    background-color: #003580;
+}
+
+/* Estilo para los formularios */
+.form-group {
+    margin-bottom: 2rem;
+    transition: all 0.3s ease-in-out;
+    display: none; /* Por defecto oculto */
+}
+
+/* Campo de entrada y botones */
+input, button {
+    width: 100%;
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    font-size: 1rem;
+    box-sizing: border-box;
+}
+
+input {
+    border: 1px solid #ccc;
     background: #fff;
     color: #333;
-    padding: 1.5rem;
-    margin-bottom: 1rem;
-    border-radius: 10px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-  }
-  
-  .login-box h2 {
-    margin-bottom: 1rem;
-    font-size: 1.2rem;
-  }
-  
-  input {
-    width: 100%;
-    padding: 0.6rem;
-    margin-bottom: 1rem;
-    border-radius: 5px;
-    border: 1px solid #ccc;
-  }
-  
-  button {
-    width: 100%;
-    padding: 0.7rem;
-    border: none;
-    border-radius: 5px;
+}
+
+button {
     background: #004aad;
     color: #fff;
+    border: none;
     cursor: pointer;
     font-weight: bold;
-  }
-  
-  button:hover {
+    transition: background-color 0.3s;
+}
+
+button:hover {
     background: #003580;
-  }
-  
+}
+
+/* Estilos para el desplegable de operadores */
+#operadorDropdown {
+    background: #fff;
+    color: #333;
+    border-radius: 8px;
+    padding: 1rem;
+    max-height: 200px;
+    overflow-y: auto;
+    display: none;
+    margin-top: 1rem;
+    box-sizing: border-box;
+}
+
+#operadorDropdownBtn {
+    background-color: #fff;
+    color: #004aad;
+    border: 1px solid #004aad;
+    font-weight: normal;
+}
+
+#operadorDropdownBtn:hover {
+    background-color: #f0f0f0;
+}
+
+/* Estilo para mensaje de error */
+#errorMessage {
+    color: red;
+    margin-top: 1rem;
+    font-size: 1rem;
+}
+
+/* Estilo para iframe de Agentes */
+#agenteForm iframe {
+    border: none;
+    border-radius: 10px;
+    width: 100%;
+    height: 500px;
+    max-width: 100%;
+}
+
+/* Transición suave al desplegar formularios */
+.form-group {
+    transition: all 0.3s ease-in-out;
+}
+
+/* Ajustes para dispositivos pequeños */
+@media (max-width: 600px) {
+    .login-container {
+        padding: 2rem;
+        width: 90%;
+    }
+
+    .btn-role {
+        width: 48%;
+        margin-bottom: 1rem;
+    }
+}

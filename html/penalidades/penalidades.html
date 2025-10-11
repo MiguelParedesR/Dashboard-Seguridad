@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
   <meta charset="UTF-8" />
   <title>Penalidades - TPP</title>
@@ -8,9 +9,13 @@
   <link rel="stylesheet" href="../../css/penalidades/penalidades.css" />
   <!-- Supabase (UMD que expone window.supabase) -->
   <script src="https://unpkg.com/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+  <script type="module" src="/js/estilos-sidebar/sidebar-loader.js"></script>
+
 </head>
 
 <body>
+  <div id="sidebar-container"></div>
+
   <main class="wrap">
     <!-- Panel izquierdo: registro / edición -->
     <aside class="panel">
@@ -40,12 +45,8 @@
         <div class="row" id="agenteTA">
           <label>Agente</label>
           <div style="position:relative; flex:1; min-width:260px;">
-            <input
-              type="text"
-              id="agenteSearch"
-              placeholder="Escribe para buscar… (min. 2 letras)"
-              autocomplete="off"
-            />
+            <input type="text" id="agenteSearch" placeholder="Escribe para buscar… (min. 2 letras)"
+              autocomplete="off" />
             <input type="hidden" id="agenteId" />
             <!-- dropdown -->
             <div id="taDropdown" class="modal hidden" style="inset:auto; top:unset; left:unset;">
@@ -248,4 +249,5 @@
   <script src="../../js/core/supabaseClient.js"></script>
   <script src="../../js/penalidades/penalidades.js"></script>
 </body>
+
 </html>

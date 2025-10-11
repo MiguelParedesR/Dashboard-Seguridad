@@ -1,104 +1,94 @@
-// login.js
+LOGIN.JS
 
-// === LOGIN OPERADORES (CCTV) ===
-async function loginOperador(email, password) {
-    try {
-        // buscamos al operador por correo
-        const { data, error } = await supabase
-            .from('operadores')
-            .select('*')
-            .eq('correo', email)
-            .single();
 
-        if (error || !data) {
-            alert("Operador no encontrado");
-            return false;
-        }
 
-        // ⚠️ Aquí debería usarse bcrypt para comparar hashes
-        if (data.clave_encriptada !== password) {
-            alert("Clave incorrecta");
-            return false;
-        }
+document.addEventListener("DOMContentLoaded", function () {
 
-        alert(`Bienvenido, ${data.nombre}`);
-        // Redirigir al panel CCTV
-        window.location.href = "calendario.html";
-        return true;
+  const adminBtn = document.getElementById('adminBtn');
+  const operadorBtn = document.getElementById('operadorBtn');
+  const agenteBtn = document.getElementById('agenteBtn');
+  
+  const adminForm = document.getElementById('adminForm');
+  const operadorForm = document.getElementById('operadorForm');
+  const agenteForm = document.getElementById('agenteForm');
+  
+  const operadorDropdownBtn = document.getElementById('operadorDropdownBtn');
+  const operadorDropdown = document.getElementById('operadorDropdown');
+  
+  const adminPasswordInput = document.getElementById('adminPassword');
+  const operadorClaveInput = document.getElementById('operadorClave');
+  
+  // Función para alternar la visibilidad de los formularios
+  function toggleForm(form) {
+    const forms = [adminForm, operadorForm, agenteForm];
+    
+    // Ocultar todos los formularios primero
+    forms.forEach(f => {
+      if (f !== form) f.classList.add('hidden');
+    });
 
-    } catch (err) {
-        console.error(err);
-        alert("Error en login operador");
+    // Alternar la visibilidad del formulario actual
+    form.classList.toggle('hidden');
+  }
+
+  // Agregar event listeners a los botones para mostrar/ocultar los formularios
+  adminBtn.addEventListener('click', () => toggleForm(adminForm));
+  operadorBtn.addEventListener('click', () => toggleForm(operadorForm));
+  agenteBtn.addEventListener('click', () => toggleForm(agenteForm));
+
+  async function loadOperadores() {
+    const { data, error } = await supabase
+      .from('operadores')
+      .select('id, nombre')
+      .order('nombre', { ascending: true });
+
+    if (error) {
+      console.error("Error cargando operadores:", error);
+      return;
     }
-}
 
+    operadorDropdown.innerHTML = '';
+    data.forEach(operador => {
+      const option = document.createElement('div');
+      option.classList.add('dropdown-item');
+      option.textContent = operador.nombre;
+      option.addEventListener('click', () => {
+        operadorDropdownBtn.textContent = operador.nombre;
+        operadorDropdown.classList.add('hidden');
+      });
+      operadorDropdown.appendChild(option);
+    });
 
+    operadorDropdownBtn.addEventListener('click', () => {
+      operadorDropdown.classList.toggle('hidden');
+    });
+  }
 
-// === LOGIN AGENTES (SEGURIDAD) ===
-// Aquí asumimos que ya usas FaceIO en tu HTML para validar rostro
-async function loginAgente(dni, local, puesto, horas = 12) {
-    try {
-        // verificamos que el agente exista
-        const { data: agente, error } = await supabase
-            .from('agentes')
-            .select('*')
-            .eq('dni', dni)
-            .single();
-
-        if (error || !agente) {
-            alert("Agente no encontrado");
-            return false;
-        }
-
-        // Aquí iría la validación facial con FaceIO:
-        // faceio.authenticate({ locale: "auto" }).then(...)
-        // De momento simulamos OK.
-
-        // Insertamos en asignaciones
-        const { error: insertError } = await supabase
-            .from('asignaciones')
-            .insert([
-                {
-                    agente_id: agente.id,
-                    local: local,
-                    puesto: puesto,
-                    horas: horas,
-                    tipo: "normal"
-                }
-            ]);
-
-        if (insertError) {
-            console.error(insertError);
-            alert("Error registrando asignación");
-            return false;
-        }
-
-        alert(`Bienvenido ${agente.nombre}, asignado a ${puesto} en ${local}`);
-        // Redirigir al dashboard de agente
-        window.location.href = "dashboard.html";
-        return true;
-
-    } catch (err) {
-        console.error(err);
-        alert("Error en login agente");
+  // Ingreso ADMINISTRADOR
+  adminForm.addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (adminPasswordInput.value === 'admin123') {
+      alert('Bienvenido Administrador');
+      window.location.href = 'dashboardAdmin.html';
+    } else {
+      alert('Contraseña incorrecta');
     }
-}
+  });
 
-
-
-// === Ejemplo de uso desde tu formulario HTML ===
-document.getElementById("formOperador")?.addEventListener("submit", async (e) => {
+  // Ingreso OPERADOR CCTV
+  operadorForm.addEventListener('submit', function (e) {
     e.preventDefault();
-    const email = document.getElementById("opCorreo").value;
-    const pass = document.getElementById("opClave").value;
-    await loginOperador(email, pass);
-});
+    const operadorClave = operadorClaveInput.value;
+    // Validación con Supabase aquí
+    if (operadorClave === 'claveCorrecta') {
+      alert('Operador logueado');
+      window.location.href = 'panelCCTV.html';
+    } else {
+      alert('Clave incorrecta');
+    }
+  });
 
-document.getElementById("formAgente")?.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const dni = document.getElementById("agDni").value;
-    const local = document.getElementById("agLocal").value;
-    const puesto = document.getElementById("agPuesto").value;
-    const horas = parseInt(document.getElementById("agHoras").value) || 12;
-    await loginAgente(dni, local, puesto, horas);
+  // Cargar los operadores cuando se abra el formulario
+  operadorBtn.addEventListener('click', loadOperadores);
+
 });

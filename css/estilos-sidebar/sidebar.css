@@ -1,0 +1,297 @@
+/* ===========================
+   Sidebar TPP - Estilos Base (Extendido)
+=========================== */
+
+/* Reset y base */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Fondo base */
+body {
+  background-color: #f4f6f8;
+  transition: background 0.2s ease;
+}
+
+/* ---------------------------
+   Sidebar principal
+--------------------------- */
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 250px;
+  height: 100%;
+  background: #2f3b52;
+  color: #fff;
+  overflow-y: auto;
+  z-index: 1000;
+  transform: translateX(0);
+  transition: transform 0.32s ease, width 0.25s ease;
+  box-shadow: 2px 0 12px rgba(0,0,0,0.08);
+}
+
+/* Scrollbar */
+.sidebar::-webkit-scrollbar { width: 6px; }
+.sidebar::-webkit-scrollbar-thumb { background: rgba(255,165,0,0.45); border-radius: 3px; }
+
+/* Logo */
+.logo {
+  position: relative;
+  padding: 18px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.logo .logo-text {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #fff;
+  margin-left: 6px;
+}
+
+/* Collapse button */
+.collapse-btn {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  color: rgba(255,255,255,0.9);
+  font-size: 1rem;
+  padding: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ---------------------------
+   Menu items
+--------------------------- */
+.menu {
+  list-style: none;
+  padding: 8px 0;
+}
+
+.menu li {
+  position: relative;
+}
+
+.menu-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+  color: #e1e1e1;
+  padding: 12px 14px;
+  font-size: 0.98rem;
+  border-left: 4px solid transparent;
+  justify-content: flex-start;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.menu-link i {
+  width: 22px;
+  min-width: 22px;
+  text-align: center;
+  color: #f1f3f6;
+  margin-left: 4px;
+}
+
+.menu-link span {
+  display: inline-block;
+  white-space: nowrap;
+  text-align: left;
+}
+
+/* hover / activo */
+.menu-link:hover {
+  background: #3e4b67;
+  color: #fff;
+  border-left: 4px solid #ffa500;
+}
+
+/* arrows */
+.menu-link .arrow {
+  margin-left: auto;
+  color: rgba(255,255,255,0.7);
+  font-size: 0.9rem;
+}
+
+/* Submenu acordeón */
+.submenu {
+  list-style: none;
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-height 0.36s ease, opacity 0.28s ease;
+  background: #394862;
+}
+
+.menu li.active > .submenu {
+  opacity: 1;
+  max-height: 420px;
+}
+
+.submenu li a {
+  display: block;
+  padding: 10px 18px 10px 48px;
+  color: #cfd3da;
+  text-decoration: none;
+  font-size: 0.95rem;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.submenu li a:hover {
+  background: rgba(0,0,0,0.03);
+  color: #fff;
+}
+
+/* Collapsed desktop */
+.sidebar.collapsed {
+  width: 70px;
+}
+
+.sidebar.collapsed .logo .logo-text { display: none; }
+.sidebar.collapsed .collapse-btn i { transform: rotate(180deg); }
+
+.sidebar.collapsed .menu-link {
+  justify-content: center;
+  padding: 12px 0;
+}
+
+.sidebar.collapsed .menu-link span { display: none; }
+.sidebar.collapsed .menu-link .arrow { display: none; }
+
+.sidebar.collapsed .submenu { display: none; }
+
+/* ---------------------------
+   Sidebar toggle (mobile)
+--------------------------- */
+.sidebar-toggle {
+  position: fixed;
+  top: 14px;
+  left: 14px;
+  background: #2f3b52;
+  color: #fff;
+  border: none;
+  padding: 8px 10px;
+  border-radius: 6px;
+  box-shadow: 1px 1px 10px rgba(0,0,0,0.12);
+  cursor: pointer;
+  z-index: 1100;
+  display: none;
+}
+
+.sidebar-toggle i { font-size: 1.05rem; }
+
+/* ---------------------------
+   Responsive
+--------------------------- */
+@media (max-width: 1024px) {
+  .sidebar-toggle { display: inline-flex; }
+  .sidebar { transform: translateX(-260px); }
+  .sidebar.show { transform: translateX(0); }
+  .collapse-btn { display: none; }
+  .sidebar.collapsed { width: 250px; }
+}
+
+/* ---------------------------
+   Body overlay
+--------------------------- */
+body.sidebar-open { overflow: hidden; }
+
+/* ---------------------------
+   Animaciones extras
+--------------------------- */
+.menu-link span,
+.menu-link i,
+.submenu li a {
+  transition: all 0.25s ease;
+}
+
+/* Active link highlight */
+.menu > li.active-link > .menu-link { background: #3e4b67; border-left-color: #ffa500; }
+
+/* Submenu animado */
+.menu li.active > .submenu { opacity: 1; max-height: 500px; transition: max-height 0.3s ease, opacity 0.25s ease; }
+
+/* Expandir submenus con icono */
+.menu-link .arrow::after {
+  content: "▶";
+  display: inline-block;
+  transition: transform 0.2s ease;
+}
+
+.menu li.active > .menu-link .arrow::after { transform: rotate(90deg); }
+
+/* ---------------------------
+   Scroll behavior smooth
+--------------------------- */
+html { scroll-behavior: smooth; }
+
+/* ---------------------------
+   Custom classes for JS
+--------------------------- */
+body.sidebar-collapsed main.wrap,
+body.sidebar-collapsed main.dashboard-content,
+body.sidebar-collapsed #dashboardContent { margin-left: 70px; transition: margin-left 0.25s ease; }
+
+@media (max-width: 1024px) {
+  body.sidebar-collapsed main.wrap,
+  body.sidebar-collapsed main.dashboard-content,
+  body.sidebar-collapsed #dashboardContent { margin-left: 0 !important; }
+}
+
+/* ---------------------------
+   Extra UX/estética
+--------------------------- */
+.menu-link span.badge {
+  background: #ffa500;
+  color: #2f3b52;
+  font-size: 0.75rem;
+  padding: 1px 5px;
+  border-radius: 4px;
+  margin-left: auto;
+  display: inline-block;
+}
+.menu-link i.badge-icon { margin-left: 0; }
+
+/* Helper para loading state */
+main.wrap.loading,
+main.dashboard-content.loading,
+#dashboardContent.loading { opacity: 0.6; transition: opacity 0.3s ease; pointer-events: none; }
+
+/* ---------------------------
+   Colores alternativos para hover
+--------------------------- */
+.menu-link[data-hover="alt"]:hover { background: #495770; border-left-color: #ffb84d; }
+.submenu li a[data-hover="alt"]:hover { background: #4a5678; }
+
+/* ---------------------------
+   Fixed footer en sidebar
+--------------------------- */
+.sidebar-footer {
+  position: absolute;
+  bottom: 0;
+  width: 100%;
+  padding: 12px 14px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  background: #2b374e;
+  text-align: center;
+  font-size: 0.85rem;
+  color: #ccc;
+}
+
+/* ---------------------------
+   Expansión futura de plugins
+--------------------------- */
+.sidebar .plugin { display: flex; align-items: center; gap: 6px; padding: 8px 12px; }
+.sidebar .plugin span { font-size: 0.9rem; color: #e1e1e1; }
+.sidebar .plugin i { font-size: 1rem; color: #f1f3f6; }

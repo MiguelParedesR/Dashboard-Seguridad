@@ -56,7 +56,12 @@ function bringToFront(el, z = 10000) {
     if (el) el.style.zIndex = String(z);
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
+/* ---------- Inicialización (antes estaba en DOMContentLoaded) ----------
+   Se encapsula en initPenalidades() y se ejecuta inmediatamente si
+   document.readyState !== 'loading', o se registra en DOMContentLoaded.
+--------------------------------------------------------------------- */
+
+async function initPenalidades() {
     // Carga inicial
     await cargarEmpresas();
     await cargarPenalidades();
@@ -125,7 +130,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!$('lightbox').classList.contains('hidden')) closeLightbox();
         }
     });
-});
+}
+
+/* Ejecutar initPenalidades de forma robusta dependiendo del readyState */
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initPenalidades);
+} else {
+    // Si el script se inyecta después de DOMContentLoaded, inicializa inmediatamente
+    initPenalidades();
+}
 
 // =================== UTILS EMPRESA (SINÓNIMOS) ===================
 
@@ -893,4 +906,4 @@ function hideNotify() {
     modal.classList.remove('show');
     modal.classList.add('hidden');
 }
-// =================== ON LOAD ===================
+// =================== FIN ===================

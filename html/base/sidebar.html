@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Sidebar TPP</title>
+
+  <!-- CSS del Sidebar (ruta relativa a tu estructura) -->
+  <link rel="stylesheet" href="../../css/estilos-sidebar/sidebar.css">
+
+  <!-- Font Awesome (CDN) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+    crossorigin="anonymous" referrerpolicy="no-referrer" />
+</head>
+
+<body>
+
+  <!-- SIDEBAR (único contenido de este módulo) -->
+  <nav id="sidebar" class="sidebar" aria-label="Sidebar principal">
+    <div class="logo">
+      <span class="logo-text">TPP Dashboard</span>
+
+      <!-- Collapse button (desktop): colapsa a icon-only -->
+      <button id="collapseBtn" class="collapse-btn" aria-label="Colapsar menú">
+        <i class="fas fa-angle-left" aria-hidden="true"></i>
+      </button>
+    </div>
+
+    <ul class="menu" role="menu">
+      <li role="none">
+        <a role="menuitem" href="#" class="menu-link">
+          <i class="fas fa-home" aria-hidden="true"></i><span>Dashboard</span>
+        </a>
+      </li>
+
+      <li role="none" class="has-submenu">
+        <a role="button" href="#" class="menu-link" aria-expanded="false">
+          <i class="fas fa-video" aria-hidden="true"></i><span>Actividades CCTV</span>
+          <i class="fas arrow" aria-hidden="true"></i>
+        </a>
+        <ul class="submenu" role="menu">
+          <li role="none"><a role="menuitem" href="../actividades-cctv/incidencias.html">Incidencias</a></li>
+          <li role="none"><a role="menuitem" href="../actividades-cctv/lockers.html">Lockers</a></li>
+        </ul>
+      </li>
+
+      <li role="none" class="has-submenu">
+        <a role="button" href="#" class="menu-link" aria-expanded="false">
+          <i class="fas fa-user-shield" aria-hidden="true"></i><span>Administración</span>
+          <i class="fas arrow" aria-hidden="true"></i>
+        </a>
+        <ul class="submenu" role="menu">
+          <li role="none"><a role="menuitem" href="../admin/admin.html">Usuarios</a></li>
+          <li role="none"><a role="menuitem" href="../admin/noticias.html">Noticias</a></li>
+        </ul>
+      </li>
+
+      <li role="none" class="has-submenu">
+        <a role="button" href="#" class="menu-link" aria-expanded="false">
+          <i class="fas fa-file-excel" aria-hidden="true"></i><span>Penalidades</span>
+          <i class="fas arrow" aria-hidden="true"></i>
+        </a>
+        <ul class="submenu" role="menu">
+          <li role="none"><a role="menuitem" href="../penalidades/penalidades.html">Penalidades</a></li>
+          <li role="none"><a role="menuitem" href="../penalidades/excel.html">Excel</a></li>
+        </ul>
+      </li>
+
+      <li role="none" class="has-submenu">
+        <a role="button" href="#" class="menu-link" aria-expanded="false">
+          <i class="fas fa-user-clock" aria-hidden="true"></i><span>Rol de Servicios</span>
+          <i class="fas arrow" aria-hidden="true"></i>
+        </a>
+        <ul class="submenu" role="menu">
+          <li role="none"><a role="menuitem" href="../rol-servicios/turnos.html">Turnos Día</a></li>
+          <li role="none"><a role="menuitem" href="../rol-servicios/turnoNoche.html">Turnos Noche</a></li>
+        </ul>
+      </li>
+
+      <li role="none">
+        <a role="menuitem" href="../login-general/login.html" class="menu-link">
+          <i class="fas fa-sign-in-alt" aria-hidden="true"></i><span>Login</span>
+        </a>
+      </li>
+    </ul>
+  </nav>
+
+  <!-- Toggle para móvil (solo se muestra en pantallas pequeñas) -->
+  <button id="sidebarToggle" class="sidebar-toggle" aria-label="Abrir menú">
+    <i class="fas fa-bars" aria-hidden="true"></i>
+  </button>
+
+  <!-- Script modular principal -->
+  <script type="module" src="../../js/estilos-sidebar/sidebar.js"></script>
+
+  <!-- ✅ Inicialización condicional solo si se abre este archivo directamente -->
+  <script type="module">
+    import { initSidebar } from '../../js/estilos-sidebar/sidebar.js';
+    if (!window.__SIDEBAR_LOADED__) {
+      window.__SIDEBAR_LOADED__ = true;
+      document.addEventListener('DOMContentLoaded', () => {
+        initSidebar('body');
+      });
+    }
+  </script>
+
+
+  <!-- ℹ️ Este archivo normalmente es cargado por sidebar-loader.js;
+       esta inicialización solo permite probarlo de forma independiente -->
+</body>
+
+</html>

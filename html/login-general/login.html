@@ -4,31 +4,51 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Login - Agentes TPP</title>
-  <link rel="stylesheet" href="../css/login.css">
+  <link rel="stylesheet" href="../../css/login-general/login.css">
+  
+  <!-- Cargar Supabase desde CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.15.0/dist/supabase.min.js"></script>
 </head>
 <body>
   <div class="login-container">
     <h1>Acceso Agentes TPP</h1>
-    <form id="loginForm">
-      <!-- Opción 1: Acceso por DNI -->
-      <div class="form-group">
-        <label for="dni">DNI:</label>
-        <input type="text" id="dni" name="dni" placeholder="Ingresa tu DNI" required>
-      </div>
+
+    <div id="roleSelection">
+      <button class="btn-role" id="adminBtn">ADMINISTRADOR</button>
+      <button class="btn-role" id="operadorBtn">OPERADOR CCTV</button>
+      <button class="btn-role" id="agenteBtn">AGENTE</button>
+    </div>
+
+    <!-- Formulario para el Administrador -->
+    <div id="adminForm" class="form-group hidden">
+      <h2>Acceso Administrador</h2>
+      <label for="adminPassword">Contraseña:</label>
+      <input type="password" id="adminPassword" name="adminPassword" placeholder="Ingresa tu contraseña" required>
+      <button type="submit" class="btn-login">Ingresar</button>
+    </div>
+
+    <!-- Formulario para el Operador CCTV -->
+    <div id="operadorForm" class="form-group hidden">
+      <h2>Acceso Operador CCTV</h2>
+      
+      <label for="operadorDropdownBtn">Seleccione su nombre:</label>
+      <button type="button" id="operadorDropdownBtn" class="btn-dropdown">Seleccione su nombre</button>
+      <div id="operadorDropdown" class="dropdown hidden"></div>
+
+      <label for="operadorClave">Clave:</label>
+      <input type="password" id="operadorClave" name="operadorClave" placeholder="Ingresa tu clave" required>
 
       <button type="submit" class="btn-login">Ingresar</button>
-    </form>
+    </div>
 
-    <hr>
-
-    <!-- Opción 2: Acceso por reconocimiento facial -->
-    <div class="form-group">
-      <button id="faceLogin" class="btn-facial">Ingresar con reconocimiento facial</button>
+    <!-- Interfaz de reconocimiento facial para Agente -->
+    <div id="agenteForm" class="form-group hidden">
+      <iframe src="https://manualdefunciones.netlify.app/identificacion.html" width="100%" height="500px" frameborder="0" allow="camera"></iframe>
     </div>
 
     <p id="errorMessage" class="error"></p>
   </div>
 
-  <script src="../js/login.js"></script>
+  <script src="../../js/login-general/login.js"></script>
 </body>
 </html>
