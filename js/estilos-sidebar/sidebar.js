@@ -106,6 +106,8 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
     if (!mainContainer) {
       mainContainer = document.querySelector('main.wrap') || document.querySelector('main') || document.querySelector('.dashboard-content') || document.querySelector('#dashboardContent');
     }
+    // contentWrapper: elemento sobre el que aplicamos margin-left; conserva fallback robusto
+    let contentWrapper = mainContainer || document.querySelector('#main-content') || document.querySelector('main') || document.querySelector('.dashboard-content') || document.querySelector('#dashboardContent') || document.body;
 
     // -------------------------
     // helpers
@@ -183,8 +185,8 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
           sm.style.transition = '';
         });
       }
-  // After changing collapsed state, ensure layout recalculated
-  adjustContentMargin();
+      // After changing collapsed state, ensure layout recalculated
+      adjustContentMargin();
     }
 
     // -------------------------
@@ -335,13 +337,63 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
         }, 220);
       }
     }
+    // Compatibilidad: cerrar todos los submenus (wrapper)
+    function closeAllSubmenus() {
+      // reutiliza closeOtherSubmenus pasando null para cerrar todos
+      try {
+        closeOtherSubmenus(null);
+      } catch (e) {
+        // en caso no exista closeOtherSubmenus, intentar cerrar por selector
+        const subs = sidebar.querySelectorAll('.submenu');
+        subs.forEach(s => {
+          s.style.maxHeight = '0px';
+          const li = s.closest('li');
+          if (li) li.classList.remove('open', 'active');
+          const lnk = li ? li.querySelector('.menu-link') : null;
+          if (lnk) lnk.setAttribute('aria-expanded', 'false');
+        });
+      }
+    }
+
+    // Compatibilidad: toggleSubmenu por link (como en sidebarPrueba1)
+    function toggleSubmenu(link) {
+      if (!link) return;
+      const li = link.closest('li');
+      if (!li) return;
+      toggleSubmenuForLi(li);
+    }
+
+    // Compatibilidad: highlightActiveLink delega en setActiveByHref
+    function highlightActiveLink(href) {
+      setActiveByHref(href);
+    }
+
+    // Compatibilidad: loadModule -> delega en loadPartial si existe
+    async function loadModule(url) {
+      if (typeof loadPartial === 'function') {
+        try {
+          await loadPartial(url, true);
+        } catch (err) {
+          console.warn('loadModule delegó en loadPartial y falló', err);
+          window.location.href = url;
+        }
+      } else {
+        // fallback simple
+        window.location.href = url;
+      }
+    }
     function adjustContentMargin() {
-      if (!sidebar || !contentWrapper) return;
+      if (!sidebar) return;
+      if (!contentWrapper) {
+        contentWrapper = mainContainer || document.querySelector('main.wrap') || document.querySelector('main') || document.querySelector('.dashboard-content') || document.querySelector('#dashboardContent') || document.querySelector('#main-content') || document.body;
+        if (!contentWrapper) return;
+      }
       const sidebarWidth = sidebar.classList.contains('collapsed') ? 80 : 250;
-      if (window.innerWidth > 768) {
+      // En desktop aplicamos el push salvo que esté colapsado (icon-only). En móvil no aplicamos margin.
+      if (isDesktop() && !sidebar.classList.contains('collapsed')) {
         contentWrapper.style.marginLeft = sidebarWidth + 'px';
       } else {
-        contentWrapper.style.marginLeft = '0';
+        contentWrapper.style.marginLeft = '';
       }
     }
 
@@ -534,8 +586,8 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
           try { history.pushState({ partial: true, href }, '', href); } catch (err) { /* ignore */ }
         }
 
-  // sincronizar layout (usar adjustContentMargin como fuente)
-  adjustContentMargin();
+        // sincronizar layout (usar adjustContentMargin como fuente)
+        adjustContentMargin();
       } catch (err) {
         console.error('sidebar.js loadPartial error', err);
         window.location.href = href;
@@ -603,7 +655,7 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
       if (!isDesktop()) {
         const target = ev.target;
         if (!sidebar.contains(target) && !(toggleBtn && toggleBtn.contains(target))) {
-            if (sidebar.classList.contains('show')) {
+          if (sidebar.classList.contains('show')) {
             sidebar.classList.remove('show');
             sidebar.setAttribute('aria-hidden', 'true');
             document.body.classList.remove(BODY_CLASS_SIDEBAR_OPEN);
@@ -634,27 +686,38 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
         // mobile: limpiar estados visuales de collapsed
         document.body.classList.remove(BODY_CLASS_SIDEBAR_COLLAPSED);
       }
-  adjustContentMargin();
+      adjustContentMargin();
     }, { passive: true });
     // ============================================================
     // EVENTOS
     // ============================================================
 
-    menuItems.forEach(link => {
-      link.addEventListener('click', e => {
-        const href = link.getAttribute('href');
-        const hasSubmenu = link.parentElement.classList.contains('has-submenu');
+    // Seleccionar enlaces del menú y asociar handlers
+    const menuLinks = sidebar.querySelectorAll('.menu > li > .menu-link, .menu > li > a[href]');
+    Array.from(menuLinks).forEach(link => {
+      link.addEventListener('click', (e) => {
+        const href = link.getAttribute('href') || '';
+        const li = link.closest('li');
+        const hasSubmenu = li && li.classList.contains('has-submenu');
 
         if (hasSubmenu) {
           e.preventDefault();
-          toggleSubmenu(link);
-        } else if (href && href.endsWith('.html')) {
-          e.preventDefault();
-          loadModule(href);
-          highlightActiveLink(href);
-          if (window.innerWidth <= 768) sidebar.classList.remove('active');
+          toggleSubmenuForLi(li);
+          return;
         }
-      });
+
+        if (href && href.endsWith('.html')) {
+          e.preventDefault();
+          // soporte SPA: carga parcial
+          loadPartial(href, true);
+          setActiveByHref(href);
+          if (!isDesktop()) {
+            sidebar.classList.remove('show');
+            sidebar.setAttribute('aria-hidden', 'true');
+            document.body.classList.remove(BODY_CLASS_SIDEBAR_OPEN);
+          }
+        }
+      }, { passive: false });
     });
 
     collapseBtn?.addEventListener('click', toggleSidebarCollapse);
@@ -666,7 +729,7 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
     // ============================================================
 
     adjustContentMargin();
-    highlightActiveLink(window.location.pathname);
+    setActiveByHref(window.location.pathname);
     // -------------------------
     // ejemplo: verificar rol desde supabase si supabase está disponible
     // -------------------------
