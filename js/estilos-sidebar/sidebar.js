@@ -304,6 +304,12 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
 
       const isActive = li.classList.contains('active');
 
+      // If sidebar is collapsed on desktop, show a floating flyout instead of opening inline submenu
+      if (sidebar.classList.contains('collapsed') && isDesktop()) {
+        showFlyoutSubmenu(li);
+        return;
+      }
+
       if (!isActive) {
         // abrir
         li.classList.add('active');
@@ -336,6 +342,58 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
           }
         }, 220);
       }
+    }
+
+    // Show a floating submenu (flyout) when sidebar is collapsed on desktop
+    function showFlyoutSubmenu(li) {
+      // remove existing
+      const existing = document.querySelector('.sidebar-flyout');
+      if (existing) existing.remove();
+      const submenu = li.querySelector('.submenu');
+      if (!submenu) return;
+
+      const rect = li.getBoundingClientRect();
+      const fly = document.createElement('div');
+      fly.className = 'sidebar-flyout';
+      // basic styles (inline to avoid editing CSS file)
+      Object.assign(fly.style, {
+        position: 'fixed',
+        top: (rect.top) + 'px',
+        left: (sidebar.getBoundingClientRect().right) + 'px',
+        minWidth: '200px',
+        background: '#394862',
+        color: '#fff',
+        zIndex: 2000,
+        padding: '8px 6px',
+        borderRadius: '6px',
+        boxShadow: '0 6px 18px rgba(0,0,0,0.25)'
+      });
+
+      // clone submenu contents
+      const list = document.createElement('ul');
+      list.className = 'submenu-flyout';
+      list.innerHTML = submenu.innerHTML;
+      // fix links to behave like normal submenu items
+      Array.from(list.querySelectorAll('a')).forEach(a => {
+        a.style.color = '#cfd3da';
+        a.style.display = 'block';
+        a.style.padding = '8px 12px';
+      });
+
+      fly.appendChild(list);
+      document.body.appendChild(fly);
+
+      // close on outside click or resize
+      const onDocClick = (ev) => {
+        if (!fly.contains(ev.target) && !li.contains(ev.target)) {
+          fly.remove();
+          document.removeEventListener('click', onDocClick);
+          window.removeEventListener('resize', onDocResize);
+        }
+      };
+      const onDocResize = () => { fly.remove(); document.removeEventListener('click', onDocClick); window.removeEventListener('resize', onDocResize); };
+      setTimeout(() => document.addEventListener('click', onDocClick), 0);
+      window.addEventListener('resize', onDocResize);
     }
     // Compatibilidad: cerrar todos los submenus (wrapper)
     function closeAllSubmenus() {
