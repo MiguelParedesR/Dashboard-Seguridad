@@ -1,11 +1,9 @@
-// ===========================
 // sidebar.js - Lógica Sidebar (corregido)
 // - dinámico, resistente a fallos en import config
 // - toggle (mobile -> overlay), collapse (desktop -> icon-only), acordeón submenu
 // - control centralizado de navegación (carga parcial de módulos)
 // - FIXES:
 //   * Ocultar textos de menu/submenu cuando sidebar está 'collapsed'.
-//   * Evitar overlay al mostrar/ocultar (syncLayout más robusto).
 //   * toggleBtn actúa como collapse en desktop (si el UI lo comparte).
 //   * loadPartial despacha 'DOMContentLoaded' sintético para compatibilidad.
 // ===========================
@@ -349,7 +347,25 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
         }, 220);
       }
     }
+    function adjustContentMargin() {
+      if (!sidebar || !contentWrapper) return;
+      const sidebarWidth = sidebar.classList.contains('collapsed') ? 80 : 250;
+      if (window.innerWidth > 768) {
+        contentWrapper.style.marginLeft = sidebarWidth + 'px';
+      } else {
+        contentWrapper.style.marginLeft = '0';
+      }
+    }
 
+    function toggleSidebarCollapse() {
+      sidebar.classList.toggle('collapsed');
+      adjustContentMargin();
+    }
+
+    function toggleSidebarMobile() {
+      sidebar.classList.toggle('active');
+      adjustContentMargin();
+    }
     if (menuEl) {
       Array.from(menuEl.children).forEach(li => {
         if (!(li instanceof HTMLElement)) return;
@@ -632,7 +648,37 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
       }
       syncLayout();
     }, { passive: true });
+    // ============================================================
+    // EVENTOS
+    // ============================================================
 
+    menuItems.forEach(link => {
+      link.addEventListener('click', e => {
+        const href = link.getAttribute('href');
+        const hasSubmenu = link.parentElement.classList.contains('has-submenu');
+
+        if (hasSubmenu) {
+          e.preventDefault();
+          toggleSubmenu(link);
+        } else if (href && href.endsWith('.html')) {
+          e.preventDefault();
+          loadModule(href);
+          highlightActiveLink(href);
+          if (window.innerWidth <= 768) sidebar.classList.remove('active');
+        }
+      });
+    });
+
+    collapseBtn?.addEventListener('click', toggleSidebarCollapse);
+    toggleBtn?.addEventListener('click', toggleSidebarMobile);
+    window.addEventListener('resize', adjustContentMargin);
+
+    // ============================================================
+    // AJUSTES INICIALES
+    // ============================================================
+
+    adjustContentMargin();
+    highlightActiveLink(window.location.pathname);
     // -------------------------
     // ejemplo: verificar rol desde supabase si supabase está disponible
     // -------------------------
