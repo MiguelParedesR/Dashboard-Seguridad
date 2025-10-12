@@ -91,23 +91,8 @@
     <i class="fas fa-bars" aria-hidden="true"></i>
   </button>
 
-  <!-- Script modular principal -->
-  <script type="module" src="../../js/estilos-sidebar/sidebar.js"></script>
-
-  <!-- ✅ Inicialización condicional solo si se abre este archivo directamente -->
-  <script type="module">
-    import { initSidebar } from '../../js/estilos-sidebar/sidebar.js';
-    if (!window.__SIDEBAR_LOADED__) {
-      window.__SIDEBAR_LOADED__ = true;
-      document.addEventListener('DOMContentLoaded', () => {
-        initSidebar('body');
-      });
-    }
-  </script>
-
-
-  <!-- ℹ️ Este archivo normalmente es cargado por sidebar-loader.js;
-       esta inicialización solo permite probarlo de forma independiente -->
+  <!-- Note: This HTML fragment is a template. It's injected by sidebar-loader.js which
+       handles initialization. Do not include inline module scripts here. -->
 </body>
 
 </html>

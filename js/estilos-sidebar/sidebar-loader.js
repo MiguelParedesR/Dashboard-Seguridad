@@ -40,6 +40,32 @@ async function ensureLink(href, attrs = {}) {
     }
 
     // 3️⃣ Importar el módulo sidebar.js
+    // Antes de importar el módulo, inyectamos únicamente el markup necesario
+    // para evitar ejecutar scripts presentes en el HTML (que podrían re-importar
+    // modules y duplicar la inicialización).
+    try {
+      const resp = await fetch(SIDEBAR_HTML_PATH, { cache: 'no-cache' });
+      if (resp.ok) {
+        const text = await resp.text();
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(text, 'text/html');
+        const sidebarEl = doc.querySelector('#sidebar');
+        const toggleEl = doc.querySelector('#sidebarToggle');
+        // Remove any existing to avoid duplicates
+        const existingSidebar = document.getElementById('sidebar');
+        if (existingSidebar) existingSidebar.remove();
+        const existingToggle = document.getElementById('sidebarToggle');
+        if (existingToggle) existingToggle.remove();
+
+        if (sidebarEl) container.insertAdjacentElement('afterbegin', sidebarEl);
+        if (toggleEl) container.insertAdjacentElement('beforeend', toggleEl);
+      } else {
+        console.warn('sidebar-loader: no se pudo obtener el HTML del sidebar, status=', resp.status);
+      }
+    } catch (err) {
+      console.warn('sidebar-loader: error al obtener HTML del sidebar:', err?.message ?? err);
+    }
+
     const mod = await import(SIDEBAR_MODULE);
     const initSidebar = mod.initSidebar ?? mod.default ?? null;
 

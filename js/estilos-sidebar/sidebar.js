@@ -86,31 +86,36 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
     const sidebar = document.getElementById('sidebar');
     const toggleBtn = document.querySelector(toggleSelector);
     const collapseBtn = document.querySelector(collapseSelector);
-    if (!sidebar) {
-      console.error('sidebar.js: no se encontró #sidebar en el DOM. Abortando inicialización.');
-      return;
+  // Contenedores que usaremos para ajustar layout — declarar aquí para evitar
+  // ReferenceError cuando adjustContentMargin se llame temprano.
+  let mainContainer = null;
+  let contentWrapper = null;
+    if (toggleBtn) {
+      const onToggle = (e) => {
+        e.stopPropagation();
+        console.debug('sidebar: toggleBtn clicked - isDesktop=', isDesktop(), 'classes=', sidebar.className);
+        if (isDesktop()) {
+          // en desktop usamos collapse (icon-only)
+          const willCollapse = !sidebar.classList.contains('collapsed');
+          applyCollapsedState(willCollapse);
+        } else {
+          // en móvil delegamos a la función especializada que también
+          // restaura los textos ocultos cuando se abre el overlay
+          // (toggleSidebarMobile contiene la lógica de _mobileOverride)
+          try {
+            toggleSidebarMobile();
+          } catch (err) {
+            // fallback: togglear manualmente
+            sidebar.classList.toggle('show');
+            sidebar.setAttribute('aria-hidden', String(!sidebar.classList.contains('show')));
+            if (sidebar.classList.contains('show')) document.body.classList.add(BODY_CLASS_SIDEBAR_OPEN);
+            else document.body.classList.remove(BODY_CLASS_SIDEBAR_OPEN);
+            adjustContentMargin();
+          }
+        }
+      };
+      toggleBtn.addEventListener('click', onToggle, { passive: true });
     }
-
-    // Evitar doble inicialización
-    if (sidebar.dataset.sidebarInitialized === '1') {
-      if (window.innerWidth > DESKTOP_BREAK) sidebar.classList.add('show');
-      return;
-    }
-    sidebar.dataset.sidebarInitialized = '1';
-
-    // -------------------------
-    // detectar mainContainer (donde inyectar contenido parcial)
-    // -------------------------
-    let mainContainer = null;
-    if (mainSelectorPriority) mainContainer = document.querySelector(mainSelectorPriority);
-    if (!mainContainer) {
-      mainContainer = document.querySelector('main.wrap') || document.querySelector('main') || document.querySelector('.dashboard-content') || document.querySelector('#dashboardContent');
-    }
-    // contentWrapper: elemento sobre el que aplicamos margin-left; conserva fallback robusto
-    let contentWrapper = mainContainer || document.querySelector('#main-content') || document.querySelector('main') || document.querySelector('.dashboard-content') || document.querySelector('#dashboardContent') || document.body;
-
-    // -------------------------
-    // helpers
     // -------------------------
     function resolveUrl(base, url) {
       try {
@@ -238,6 +243,7 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
     if (toggleBtn) {
       const onToggle = (e) => {
         e.stopPropagation();
+        console.debug('sidebar: toggleBtn clicked - isDesktop=', isDesktop(), 'classes=', sidebar.className);
         if (isDesktop()) {
           // en desktop usamos collapse (icon-only)
           const willCollapse = !sidebar.classList.contains('collapsed');
@@ -266,6 +272,7 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
     if (collapseBtn) {
       const onCollapse = (e) => {
         e.stopPropagation();
+        console.debug('sidebar: collapseBtn clicked - current collapsed=', sidebar.classList.contains('collapsed'));
         const willCollapse = !sidebar.classList.contains('collapsed');
         applyCollapsedState(willCollapse);
       };
@@ -297,6 +304,7 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
     }
 
     function toggleSubmenuForLi(li) {
+      console.debug('toggleSubmenuForLi called for li:', li);
       if (!li) return;
       const anchor = li.querySelector('.menu-link');
       const submenu = li.querySelector('.submenu');
@@ -461,7 +469,65 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
     }
 
     function toggleSidebarMobile() {
+      const wasActive = sidebar.classList.contains('active');
+      const willBeActive = !wasActive;
       sidebar.classList.toggle('active');
+
+      // If sidebar is currently collapsed (desktop collapsed state persisted) and
+      // we're opening the mobile overlay, temporarily show label spans so text
+      // is visible in the overlay. We mark them with data-mobile-override so we
+      // can restore their prior state when the overlay closes.
+      if (willBeActive && sidebar.classList.contains('collapsed') && !isDesktop()) {
+        const links = sidebar.querySelectorAll('.menu .menu-link');
+        links.forEach(link => {
+          const spans = Array.from(link.children).filter(ch => ch.tagName === 'SPAN');
+          spans.forEach(span => {
+            // only override if currently hidden
+            if (getComputedStyle(span).display === 'none') {
+              span.dataset._mobileOverride = '1';
+              span.style.display = '';
+            }
+          });
+        });
+        // Also show submenus if any were hidden
+        const subs = sidebar.querySelectorAll('.submenu');
+        subs.forEach(s => {
+          if (s.style.display === 'none') {
+            s.dataset._mobileOverride = '1';
+            s.style.display = '';
+          }
+        });
+      }
+
+      // If we are closing the overlay and we had previously overridden label display,
+      // restore previous inline style from dataset._prevDisplay where present.
+      if (!willBeActive) {
+        const links = sidebar.querySelectorAll('.menu .menu-link');
+        links.forEach(link => {
+          const spans = Array.from(link.children).filter(ch => ch.tagName === 'SPAN');
+          spans.forEach(span => {
+            if (span.dataset._mobileOverride === '1') {
+              // restore previous display recorded by applyCollapsedState if exists
+              const prev = span.dataset._prevDisplay ?? '';
+              span.style.display = prev || '';
+              delete span.dataset._mobileOverride;
+            }
+          });
+        });
+        const subs = sidebar.querySelectorAll('.submenu');
+        subs.forEach(s => {
+          if (s.dataset._mobileOverride === '1') {
+            if (s.dataset._prevDisplay !== undefined) {
+              s.style.display = s.dataset._prevDisplay || '';
+              delete s.dataset._prevDisplay;
+            } else {
+              s.style.display = '';
+            }
+            delete s.dataset._mobileOverride;
+          }
+        });
+      }
+
       adjustContentMargin();
     }
     if (menuEl) {
@@ -486,19 +552,32 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
             submenu.style.maxHeight = submenu.scrollHeight + 'px';
           }
 
-          // click handler
+          // click handler on the whole link
           link.addEventListener('click', (e) => {
             e.preventDefault();
+            e.stopPropagation();
+            console.debug('sidebar: submenu link clicked', { li, collapsed: sidebar.classList.contains('collapsed'), isDesktop: isDesktop() });
             // si está colapsado (icon-only) y estamos en desktop, no abrimos submenus
             if (sidebar.classList.contains('collapsed') && isDesktop()) return;
             toggleSubmenuForLi(li);
           }, { passive: false });
 
+          // also attach click to arrow icon (if present) to improve hit area
+          const arrow = link.querySelector('.arrow');
+          if (arrow) {
+            arrow.addEventListener('click', (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (sidebar.classList.contains('collapsed') && isDesktop()) return;
+              toggleSubmenuForLi(li);
+            }, { passive: false });
+          }
+
         } else if (link) {
           // enlace normal top-level (sin submenu) -> prevenir salto si href="#"
           const href = link.getAttribute('href');
           if (!href || href === '#') {
-            link.addEventListener('click', (e) => e.preventDefault(), { passive: false });
+            link.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); }, { passive: false });
           }
         }
       });
@@ -553,6 +632,7 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
 
       try {
         mainContainer.classList.add('loading');
+        console.debug('loadPartial function called.');
 
         const res = await fetch(href, { cache: 'no-cache' });
         if (!res.ok) throw new Error(`fetch ${href} status ${res.status}`);
@@ -578,8 +658,17 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
         for (const s of inlineAndExternalScripts) {
           const srcRaw = s.getAttribute('src');
           const type = s.getAttribute('type') || s.type || '';
+          // Skip sidebar-related scripts to avoid re-initialization
+          const skipScript = (src) => {
+            if (!src) return false;
+            return /estilos-sidebar|sidebar(-loader)?\.js/.test(src);
+          };
           if (srcRaw) {
             const src = resolveUrl(baseForResolve, srcRaw);
+            if (skipScript(src)) {
+              console.debug('sidebar.js: skipping sidebar-related script during partial load', src);
+              continue;
+            }
             if (!document.querySelector(`script[src="${src}"]`)) {
               const sc = document.createElement('script');
               sc.src = src;
@@ -595,16 +684,26 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
               document.body.appendChild(sc);
             }
           } else {
+            // Inline script: skip if it appears to re-run sidebar init
+            const inlineText = s.textContent || '';
+            if (/initSidebar\(|sidebar-loader\.js|estilos-sidebar/.test(inlineText)) {
+              console.debug('sidebar.js: skipping inline script that may re-init sidebar');
+              continue;
+            }
             const sc = document.createElement('script');
             if (type) sc.type = type;
-            sc.textContent = s.textContent;
+            sc.textContent = inlineText;
             document.body.appendChild(sc);
           }
         }
 
-        // cargar scripts del head
+        // cargar scripts del head (skip sidebar-related)
         for (const srcRaw of headScripts) {
           const src = resolveUrl(baseForResolve, srcRaw);
+          if (/estilos-sidebar|sidebar(-loader)?\.js/.test(src)) {
+            console.debug('sidebar.js: skipping head script (sidebar-related) during partial load', src);
+            continue;
+          }
           if (!document.querySelector(`script[src="${src}"]`)) {
             const sc = document.createElement('script');
             sc.src = src;
@@ -752,14 +851,19 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
 
     // Seleccionar enlaces del menú y asociar handlers
     const menuLinks = sidebar.querySelectorAll('.menu > li > .menu-link, .menu > li > a[href]');
+    console.debug('Attaching click handlers to menuLinks, count=', menuLinks.length);
     Array.from(menuLinks).forEach(link => {
+      console.debug('menu link found:', link, 'href=', link.getAttribute('href'));
       link.addEventListener('click', (e) => {
         const href = link.getAttribute('href') || '';
         const li = link.closest('li');
         const hasSubmenu = li && li.classList.contains('has-submenu');
 
+        console.debug('menu link clicked', { href, hasSubmenu, li });
+
         if (hasSubmenu) {
           e.preventDefault();
+          console.debug('Preventing default for submenu link and toggling submenu for li', li);
           toggleSubmenuForLi(li);
           return;
         }
@@ -767,6 +871,7 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
         if (href && href.endsWith('.html')) {
           e.preventDefault();
           // soporte SPA: carga parcial
+          console.debug('Loading partial for href', href);
           loadPartial(href, true);
           setActiveByHref(href);
           if (!isDesktop()) {
@@ -778,8 +883,9 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
       }, { passive: false });
     });
 
-    collapseBtn?.addEventListener('click', toggleSidebarCollapse);
-    toggleBtn?.addEventListener('click', toggleSidebarMobile);
+  // NOTE: event listeners for collapse/toggle are attached earlier
+  // via specialized handlers (onCollapse/onToggle). Avoid duplicate
+  // attachments here to prevent conflicting behavior.
     window.addEventListener('resize', adjustContentMargin);
 
     // ============================================================
@@ -799,21 +905,39 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
         const { data, error } = await supabase.from('usuarios').select('rol').eq('id', userId).limit(1);
         if (error) {
           console.warn('sidebar.js supabase error:', error.message || error);
-        } else if (data && data.length) {
-          localStorage.setItem('userRole', data[0].rol);
+        } else if (data && data.length > 0) {
+          const rol = data[0].rol;
+          localStorage.setItem('userRole', rol);
+          // Aplicar ocultamiento de enlaces admin si es necesario
+          if (rol === 'operador') {
+            const adminLinks = sidebar.querySelectorAll('a[href*="admin.html"], a[href*="noticias.html"]');
+            adminLinks.forEach((link) => {
+              const li = link.closest('li');
+              if (li) li.style.display = 'none';
+            });
+          }
         }
       } catch (err) {
-        console.warn('sidebar.js checkUserRoleFromDb err', err);
+        console.warn('sidebar.js: error al verificar rol de usuario', err);
       }
     }
+
+    // Llamar a la función de verificación de rol
     checkUserRoleFromDb();
+  })();
+}
 
-    // -------------------------
-    // finalizar init
-    // -------------------------
-    adjustContentMargin();
-  })(); // fin IIFE
-} // fin initSidebar
+// ===========================
+// MANTENIMIENTO
+// ===========================
+/*
+  - [ ] Revisar y limpiar código comentado o innecesario.
+  - [ ] Verificar que todas las rutas relativas a recursos (imágenes, scripts, estilos) sean correctas.
+  - [ ] Asegurarse que los eventos y listeners se limpien adecuadamente para evitar fugas de memoria.
+  - [ ] Probar en diferentes navegadores y dispositivos para asegurar compatibilidad.
+  - [ ] Documentar cualquier comportamiento inesperado o "hacky" para futuras referencias.
+*/
 
-// NOTA: NO hay fallback automático ni auto-inicialización aquí.
-// Inicializa siempre desde sidebar-loader.js o llama initSidebar('#sidebar-container') manualmente.
+// Note: The interactive initialization is handled via initSidebar exported function
+// and invoked by `sidebar-loader.js` or inline modules. Avoid duplicate
+// DOMContentLoaded handlers here to prevent event-handler duplication.
