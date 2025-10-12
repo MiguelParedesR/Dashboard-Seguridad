@@ -183,8 +183,8 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
           sm.style.transition = '';
         });
       }
-  // After changing collapsed state, ensure layout recalculated
-  adjustContentMargin();
+      // After changing collapsed state, ensure layout recalculated
+      syncLayout();
     }
 
     // -------------------------
@@ -192,25 +192,12 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
     // - Aplica margin-left al mainContainer cuando sidebar visible y no colapsado en desktop.
     // - Añade clase BODY_CLASS_SIDEBAR_OPEN en móvil cuando sidebar está abierto (overlay).
     // -------------------------
-    // syncLayout kept for backward compatibility but delegates to adjustContentMargin
     function syncLayout() {
+      // Mantener compatibilidad con llamadas existentes: delegar en adjustContentMargin
       try {
         adjustContentMargin();
-        // ensure mobile overlay class active only when sidebar is shown and not desktop
-        if (!isDesktop() && sidebar.classList.contains('show')) {
-          document.body.classList.add(BODY_CLASS_SIDEBAR_OPEN);
-        } else {
-          document.body.classList.remove(BODY_CLASS_SIDEBAR_OPEN);
-        }
-
-        // reflect collapsed state on body (keep parity)
-        if (isDesktop() && sidebar.classList.contains('collapsed')) {
-          document.body.classList.add(BODY_CLASS_SIDEBAR_COLLAPSED);
-        } else {
-          document.body.classList.remove(BODY_CLASS_SIDEBAR_COLLAPSED);
-        }
       } catch (err) {
-        console.warn('sidebar.js syncLayout err', err);
+        console.warn('sidebar.js syncLayout wrapper err', err);
       }
     }
 
@@ -226,7 +213,7 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
     if (sidebar.classList.contains('collapsed')) {
       applyCollapsedState(true);
     }
-    adjustContentMargin();
+    syncLayout();
 
     // -------------------------
     // TOGGLE (mobile). Comportamiento adaptativo:
@@ -252,7 +239,7 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
           } else {
             document.body.classList.remove(BODY_CLASS_SIDEBAR_OPEN);
           }
-          adjustContentMargin();
+          syncLayout();
         }
       };
       toggleBtn.addEventListener('click', onToggle, { passive: true });
@@ -534,8 +521,8 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
           try { history.pushState({ partial: true, href }, '', href); } catch (err) { /* ignore */ }
         }
 
-  // sincronizar layout (usar adjustContentMargin como fuente)
-  adjustContentMargin();
+        // sincronizar layout
+        syncLayout();
       } catch (err) {
         console.error('sidebar.js loadPartial error', err);
         window.location.href = href;
@@ -603,11 +590,11 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
       if (!isDesktop()) {
         const target = ev.target;
         if (!sidebar.contains(target) && !(toggleBtn && toggleBtn.contains(target))) {
-            if (sidebar.classList.contains('show')) {
+          if (sidebar.classList.contains('show')) {
             sidebar.classList.remove('show');
             sidebar.setAttribute('aria-hidden', 'true');
             document.body.classList.remove(BODY_CLASS_SIDEBAR_OPEN);
-            adjustContentMargin();
+            syncLayout();
           }
         }
       }
@@ -634,7 +621,7 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
         // mobile: limpiar estados visuales de collapsed
         document.body.classList.remove(BODY_CLASS_SIDEBAR_COLLAPSED);
       }
-  adjustContentMargin();
+      syncLayout();
     }, { passive: true });
     // ============================================================
     // EVENTOS
@@ -690,7 +677,7 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
     // -------------------------
     // finalizar init
     // -------------------------
-    adjustContentMargin();
+    syncLayout();
   })(); // fin IIFE
 } // fin initSidebar
 
