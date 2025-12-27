@@ -1,10 +1,16 @@
 // Inicialización robusta de Supabase (cliente)
 (function () {
+  const SDK_WAIT_MS = 250;
+  const SDK_MAX_RETRIES = 40;
+  let sdkAttempts = 0;
+
+  function initSupabaseClient() {
   // 1) Verificar que el SDK está cargado
+  if (window.__supabase_client_ready) return true;
   if (!window.supabase || typeof window.supabase.createClient !== "function") {
-    console.error("[Supabase] SDK no cargado. Revisa el <script src='@supabase/supabase-js'> en el HTML.");
-    return;
+    return false;
   }
+  window.__supabase_client_ready = true;
 
   // 2) Tomar config desde window.CONFIG (si existe) o caer a fallback (lo que ya usabas)
   const cfg = (typeof window.CONFIG !== "undefined" ? window.CONFIG : null) || {};
@@ -75,5 +81,20 @@
   } catch (e) {
     console.error("[Supabase] No se pudo exponer el cliente:", e);
   }
+
+  return true;
+  }
+
+  function waitForSDK() {
+    if (initSupabaseClient()) return;
+    sdkAttempts += 1;
+    if (sdkAttempts >= SDK_MAX_RETRIES) {
+      console.error("[Supabase] SDK no cargado. Revisa el <script src='@supabase/supabase-js'> en el HTML.");
+      return;
+    }
+    setTimeout(waitForSDK, SDK_WAIT_MS);
+  }
+
+  waitForSDK();
 })();
 // Ahora puedes usar 'supabase' o 'supabaseClient' en tu código.

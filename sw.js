@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v2';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;
 
@@ -67,6 +67,18 @@ async function cacheFirst(request) {
   return response;
 }
 
+async function staleWhileRevalidate(request) {
+  const cache = await caches.open(RUNTIME_CACHE);
+  const cached = await cache.match(request);
+  const fetchPromise = fetch(request)
+    .then((response) => {
+      cache.put(request, response.clone());
+      return response;
+    })
+    .catch(() => cached);
+  return cached || fetchPromise;
+}
+
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
@@ -75,9 +87,16 @@ self.addEventListener('fetch', (event) => {
 
   if (isHtmlRequest(event.request)) {
     event.respondWith(networkFirst(event.request));
-  } else {
-    event.respondWith(cacheFirst(event.request));
+    return;
   }
+
+  const destination = event.request.destination;
+  if (destination === 'script' || destination === 'style' || destination === 'worker') {
+    event.respondWith(staleWhileRevalidate(event.request));
+    return;
+  }
+
+  event.respondWith(cacheFirst(event.request));
 });
 
 self.addEventListener('message', (event) => {
