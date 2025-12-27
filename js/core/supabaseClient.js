@@ -8,8 +8,8 @@
 
   // 2) Tomar config desde window.CONFIG (si existe) o caer a fallback (lo que ya usabas)
   const cfg = (typeof window.CONFIG !== "undefined" ? window.CONFIG : null) || {};
-  const FALLBACK_URL = "https://iogbjnvgkgchicepnzjq.supabase.co";
-  const FALLBACK_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlvZ2JqbnZna2djaGljZXBuempxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUzODY2NzksImV4cCI6MjA3MDk2MjY3OX0.wUJULfOQf8BBjW7o88i45dQ8qZGBwX2TI0iqZ5walkc";
+  const FALLBACK_URL = "https://gimwlrxdfakqtqsvxmxv.supabase.co";
+  const FALLBACK_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdpbXdscnhkZmFrcXRxc3Z4bXh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU5NzE3MzksImV4cCI6MjA3MTU0NzczOX0.J4XGNI9Iy_TEQTWShsMmgMerIWgmizMIL2dB-B1fDoc";
 
   const SUPABASE_URL = cfg.SUPABASE_URL || FALLBACK_URL;
   const SUPABASE_KEY = cfg.SUPABASE_ANON_KEY || FALLBACK_ANON;

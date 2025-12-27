@@ -1,4 +1,4 @@
-LOGIN.JS
+// LOGIN.JS
 document.addEventListener('DOMContentLoaded', function () {
   // Cached DOM elements (use optional chaining and guards to avoid null errors)
   const adminBtn = document.getElementById('adminBtn');
@@ -82,7 +82,7 @@ document.addEventListener('DOMContentLoaded', function () {
   adminForm?.addEventListener('submit', function (e) {
     e.preventDefault();
     if (adminPasswordInput && adminPasswordInput.value === 'admin123') {
-      window.location.href = 'dashboardAdmin.html';
+      window.location.href = '../base/dashboard.html';
     } else {
       alert('Contraseña incorrecta');
     }
@@ -92,7 +92,7 @@ document.addEventListener('DOMContentLoaded', function () {
   operadorForm?.addEventListener('submit', function (e) {
     e.preventDefault();
     if (operadorClaveInput && operadorClaveInput.value === 'claveCorrecta') {
-      window.location.href = 'panelCCTV.html';
+      window.location.href = '../actividades-cctv/incidencias.html';
     } else {
       alert('Clave incorrecta');
     }

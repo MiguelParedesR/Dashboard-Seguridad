@@ -2,9 +2,16 @@
 // Lógica del dashboard: integración visual con sidebar + métricas.
 // Este archivo asume que `sidebar` y `sidebarToggle` existen en el DOM
 // pero no depende de la implementación interna de sidebar.js.
-// Importa supabase de config si existe (error-tolerante).
+// Carga config.js por side-effects (window.CONFIG) y resuelve supabase desde globals.
+import '../../config.js';
 
-import { supabase } from '../../config.js';
+function getSupabaseClient() {
+  const candidate = window?.supabase;
+  if (candidate && typeof candidate.from === 'function') return candidate;
+  const client = window?.supabaseClient || window?.SUPABASE_CLIENT || window?.__supabase_client__;
+  if (client && typeof client.from === 'function') return client;
+  return null;
+}
 
 document.addEventListener('DOMContentLoaded', () => {
   // Elementos principales
@@ -104,6 +111,7 @@ document.addEventListener('DOMContentLoaded', () => {
    * Retorna número (o null si fallo).
    */
   async function countTableRows(table) {
+    const supabase = getSupabaseClient();
     if (!supabase) return null;
     try {
       // Intentamos usar head=true para obtener count exacto sin traer rows
@@ -139,6 +147,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setMetric('penalidades', '--');
     setMetric('turnosActivos', '--');
 
+    const supabase = getSupabaseClient();
     if (!supabase) {
       // Si no hay supabase, coloca valores estáticos o deja placeholders
       setMetric('usuariosActivos', 12);
