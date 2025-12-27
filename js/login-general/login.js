@@ -20,6 +20,18 @@ function navigateTo(relativePath) {
   }
   window.location.href = url;
 }
+const MODULE_KEY = 'login';
+
+function resolveDbKey() {
+  return window.CONFIG?.SUPABASE?.resolveDbKeyForModule?.(MODULE_KEY) || 'LOGIN';
+}
+
+async function getSupabaseClient() {
+  const waiter = window.CONFIG?.SUPABASE?.waitForClient;
+  if (typeof waiter !== 'function') return null;
+  return waiter(resolveDbKey());
+}
+
 document.addEventListener('DOMContentLoaded', function () {
   // Cached DOM elements (use optional chaining and guards to avoid null errors)
   const adminBtn = document.getElementById('adminBtn');
@@ -38,8 +50,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // Load operadores from Supabase (if available). Defensive: skip if supabase not present.
   async function loadOperadores() {
-    if (typeof supabase === 'undefined') {
-      console.warn('login.js: supabase SDK is not available; skipping loadOperadores');
+    const supabase = await getSupabaseClient();
+    if (!supabase) {
+      console.warn('login.js: supabase client is not available; skipping loadOperadores');
       return;
     }
     if (!operadorDropdown || !operadorDropdownBtn) {

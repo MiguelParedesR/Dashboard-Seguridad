@@ -1,8 +1,23 @@
 // excel.js — Home (cards) + vistas expandibles Asistencia / Penalidades.
-// Requiere: config.js + js/core/supabaseClient.js (window.supabase listo)
+// Requiere: config.js (SUPABASE centralizado)
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
+
+let supabase = null;
+const MODULE_KEY = 'excel';
+
+function resolveDbKey() {
+    return window.CONFIG?.SUPABASE?.resolveDbKeyForModule?.(MODULE_KEY) || 'PENALIDADES';
+}
+
+async function getSupabaseClient() {
+    if (supabase) return supabase;
+    const waiter = window.CONFIG?.SUPABASE?.waitForClient;
+    if (typeof waiter !== 'function') return null;
+    supabase = await waiter(resolveDbKey());
+    return supabase;
+}
 
 // ================== COMPANY MAPPING (UI ↔ ORIGEN) ==================
 // Etiquetas visibles en UI -> nombre real en ORIGEN
@@ -177,11 +192,17 @@ function onMultiChange(e) {
 // ---------- CARGA ASISTENCIA ----------
 async function loadAsistencia() {
     try {
+        const client = await getSupabaseClient();
+        if (!client) {
+            setLoading(false);
+            console.warn('excel.js: supabase client no disponible para asistencia');
+            return;
+        }
         const { empresaOrigin, local, desde, hasta } = getFilters();
         setRangeKPI(desde, hasta);
         setLoading(true);
 
-        let q = supabase.from('asistencias_dashboard_ext')
+        let q = client.from('asistencias_dashboard_ext')
             .select('fecha,turno,empresa,local,agente,hora_llegada,horas_sin_cubrir,penalidad_monto,observaciones');
 
         if (empresaOrigin) q = q.eq('empresa', empresaOrigin);  // match a ORIGEN
@@ -225,12 +246,18 @@ async function loadAsistencia() {
 // ---------- CARGA PENALIDADES ----------
 async function loadPenalidades() {
     try {
+        const client = await getSupabaseClient();
+        if (!client) {
+            setLoading(false);
+            console.warn('excel.js: supabase client no disponible para penalidades');
+            return;
+        }
         const { empresaOrigin, local, desde, hasta } = getFilters();
         setRangeKPI(desde, hasta);
         setLoading(true);
 
         // Traemos penalidades aplicadas + joins para nombres
-        let q = supabase.from('penalidades_aplicadas')
+        let q = client.from('penalidades_aplicadas')
             .select(`
         fecha,
         local,

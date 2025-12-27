@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'V3';
+const CACHE_VERSION = 'V8';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;
 
@@ -12,6 +12,9 @@ const STATIC_ASSETS = [
   './css/estilos-sidebar/sidebar.css',
   './html/base/sidebar.html',
   './html/login-general/login.html',
+  './html/actividades-cctv/lockers.html',
+  './css/actividades-cctv/lockers.css',
+  './js/actividades-cctv/lockers.js',
   './config.js'
 ];
 
@@ -92,7 +95,7 @@ self.addEventListener('fetch', (event) => {
 
   const destination = event.request.destination;
   if (destination === 'script' || destination === 'style' || destination === 'worker') {
-    event.respondWith(staleWhileRevalidate(event.request));
+    event.respondWith(networkFirst(event.request));
     return;
   }
 

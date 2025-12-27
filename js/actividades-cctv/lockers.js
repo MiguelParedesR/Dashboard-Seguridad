@@ -44,31 +44,22 @@
   let dom = {};
   let searchTimer = null;
 
+  const MODULE_KEY = "lockers";
+
+  function resolveDbKey() {
+    return window.CONFIG?.SUPABASE?.resolveDbKeyForModule?.(MODULE_KEY) || "LOCKERS";
+  }
+
   function getSupabaseClient() {
-    const candidate = window?.supabase;
-    if (candidate && typeof candidate.from === "function") return candidate;
-    const client = window?.supabaseClient || window?.SUPABASE_CLIENT || window?.__supabase_client__;
-    if (client && typeof client.from === "function") return client;
-    return null;
+    const dbKey = resolveDbKey();
+    return window.CONFIG?.SUPABASE?.getClient?.(dbKey) || null;
   }
 
   function waitForSupabase(maxAttempts = 40, waitMs = 250) {
-    return new Promise((resolve) => {
-      let attempts = 0;
-      const timer = setInterval(() => {
-        const client = getSupabaseClient();
-        if (client) {
-          clearInterval(timer);
-          resolve(client);
-          return;
-        }
-        attempts += 1;
-        if (attempts >= maxAttempts) {
-          clearInterval(timer);
-          resolve(null);
-        }
-      }, waitMs);
-    });
+    const dbKey = resolveDbKey();
+    const waiter = window.CONFIG?.SUPABASE?.waitForClient;
+    if (typeof waiter !== "function") return Promise.resolve(null);
+    return waiter(dbKey, { maxAttempts, waitMs });
   }
 
   function normalizeEstado(value) {
@@ -130,12 +121,7 @@
       if (grupo !== "ALL" && lockerGrupo !== grupo) return false;
 
       if (!search) return true;
-      const haystack = [
-        locker.codigo,
-        locker.colaborador_nombre,
-        locker.colaborador_dni,
-        locker.observaciones
-      ]
+      const haystack = [locker.codigo, locker.colaborador_nombre]
         .filter(Boolean)
         .map((value) => String(value).toLowerCase())
         .join(" ");
@@ -282,9 +268,7 @@
     dom.releaseBtn.disabled = !hasSelection;
 
     dom.nameInput.disabled = !hasSelection;
-    dom.dniInput.disabled = !hasSelection;
     dom.dateInput.disabled = !hasSelection;
-    dom.notesInput.disabled = !hasSelection;
     dom.groupSelect.disabled = !hasSelection;
 
     if (!hasSelection) {
@@ -293,11 +277,9 @@
       dom.selectedState.textContent = "--";
       dom.selectedUpdated.textContent = "--";
       dom.nameInput.value = "";
-      dom.dniInput.value = "";
       dom.dateInput.value = "";
-      dom.notesInput.value = "";
       dom.selectedStateBadge.style.setProperty("--state-color", "#9ca3af");
-    dom.selectedStateLabel.textContent = "Sin seleccion";
+      dom.selectedStateLabel.textContent = "Sin seleccion";
       return;
     }
 
@@ -308,9 +290,7 @@
     dom.selectedUpdated.textContent = formatDate(locker.updated_at || locker.created_at);
 
     dom.nameInput.value = locker.colaborador_nombre || "";
-    dom.dniInput.value = locker.colaborador_dni || "";
     dom.dateInput.value = locker.fecha_asignacion || "";
-    dom.notesInput.value = locker.observaciones || "";
 
     dom.groupSelect.value = normalizeGrupo(locker.grupo);
     dom.selectedStateBadge.style.setProperty("--state-color", locker.color_estado || meta.color);
@@ -427,7 +407,6 @@
     const metaLine = document.createElement("div");
     metaLine.className = "locker-meta";
     const parts = [];
-    if (locker.colaborador_dni) parts.push(`DNI ${locker.colaborador_dni}`);
     if (locker.fecha_asignacion) parts.push(formatDate(locker.fecha_asignacion));
     metaLine.textContent = parts.length ? parts.join(" | ") : meta.hint;
 
@@ -492,9 +471,7 @@
     }
 
     const name = dom.nameInput.value.trim();
-    const dni = dom.dniInput.value.trim();
     const date = dom.dateInput.value || (name ? new Date().toISOString().slice(0, 10) : "");
-    const notes = dom.notesInput.value.trim();
     const group = dom.groupSelect.value || normalizeGrupo(locker.grupo);
 
     if (!name && locker.colaborador_nombre && name !== locker.colaborador_nombre) {
@@ -504,14 +481,12 @@
 
     const payload = {
       grupo: group,
-      observaciones: notes || null,
       updated_at: new Date().toISOString()
     };
 
     if (name) {
       const occupiedMeta = STATE_META.OCUPADO;
       payload.colaborador_nombre = name;
-      payload.colaborador_dni = dni || null;
       payload.fecha_asignacion = date || null;
       payload.estado = "OCUPADO";
       payload.color_estado = occupiedMeta.color;
@@ -531,12 +506,10 @@
     const libreMeta = STATE_META.LIBRE;
     const payload = {
       colaborador_nombre: null,
-      colaborador_dni: null,
       fecha_asignacion: null,
       estado: "LIBRE",
       color_estado: libreMeta.color,
       icono_estado: libreMeta.icon,
-      observaciones: dom.notesInput.value.trim() || null,
       grupo: dom.groupSelect.value || normalizeGrupo(locker.grupo),
       updated_at: new Date().toISOString()
     };
@@ -633,7 +606,11 @@
       subscribeToRealtime(supabase);
     }
 
-    setStatus("Datos actualizados.", "success");
+    if (!state.lockers.length) {
+      setStatus("Sin lockers en la base. Verifica datos o filtros.", "warn");
+    } else {
+      setStatus("Datos actualizados.", "success");
+    }
   }
 
   function applyRealtimePayload(payload) {
@@ -714,9 +691,7 @@
       selectedStateBadge: root.querySelector("#lockerSelectedStateBadge"),
       selectedStateLabel: root.querySelector("#lockerSelectedStateLabel"),
       nameInput: root.querySelector("#lockerName"),
-      dniInput: root.querySelector("#lockerDni"),
       dateInput: root.querySelector("#lockerDate"),
-      notesInput: root.querySelector("#lockerNotes"),
       groupSelect: root.querySelector("#lockerGroup"),
       saveBtn: root.querySelector("#lockerSaveBtn"),
       releaseBtn: root.querySelector("#lockerReleaseBtn"),
@@ -745,6 +720,7 @@
     loadLockers();
   }
 
+  init();
   document.addEventListener("DOMContentLoaded", init);
   document.addEventListener("partial:loaded", init);
 })();

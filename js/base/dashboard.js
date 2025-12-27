@@ -5,12 +5,15 @@
 // Carga config.js por side-effects (window.CONFIG) y resuelve supabase desde globals.
 import '../../config.js';
 
+const MODULE_KEY = 'dashboard';
+
+function resolveDbKey() {
+  return window.CONFIG?.SUPABASE?.resolveDbKeyForModule?.(MODULE_KEY) || 'DASHBOARD';
+}
+
 function getSupabaseClient() {
-  const candidate = window?.supabase;
-  if (candidate && typeof candidate.from === 'function') return candidate;
-  const client = window?.supabaseClient || window?.SUPABASE_CLIENT || window?.__supabase_client__;
-  if (client && typeof client.from === 'function') return client;
-  return null;
+  const dbKey = resolveDbKey();
+  return window.CONFIG?.SUPABASE?.getClient?.(dbKey) || null;
 }
 
 document.addEventListener('DOMContentLoaded', () => {

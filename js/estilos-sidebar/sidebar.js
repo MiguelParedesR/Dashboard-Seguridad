@@ -87,8 +87,10 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
   (async () => {
     let supabase = null;
     try {
-      const cfg = await import('../../config.js');
-      supabase = cfg.supabase ?? cfg.default?.supabase ?? null;
+      await import('../../config.js');
+      const dbKey = window.CONFIG?.SUPABASE?.resolveDbKeyForModule?.('sidebar') || 'DASHBOARD';
+      const waiter = window.CONFIG?.SUPABASE?.waitForClient;
+      supabase = typeof waiter === 'function' ? await waiter(dbKey) : null;
     } catch (err) {
       console.warn('sidebar.js: no se pudo importar config.js (ok en dev).', err?.message ?? err);
     }

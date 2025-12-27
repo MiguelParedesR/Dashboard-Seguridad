@@ -6,6 +6,7 @@
 
 const $ = (id) => document.getElementById(id);
 let deleteId = null;
+let supabase = null;
 
 // Paginación
 let currentPage = 1;
@@ -21,12 +22,100 @@ let taOpen = false; // estado del dropdown typeahead
 let taActiveIndex = -1; // índice activo para navegación con teclado
 let taCurrentItems = []; // items visibles en la lista
 let submitting = false;
+const MODULE_KEY = 'penalidades';
 
 /** Sinónimos por nombre visible en UI */
 const EMPRESA_SYNONYMS = {
     'CORSEPRI S.A.': ['CORSEPRISA', 'CORSEPRI', 'CORSEPRI S.A.'],
     'VICMER SECURITY': ['VICMER', 'VICMER SECURITY']
 };
+
+const SUPABASE_TABLES = [
+    'penalidades_aplicadas',
+    'penalidades_catalogo',
+    'penalidades_evidencias',
+    'empresas',
+    'agentes_seguridad',
+    'v_uit_actual'
+];
+
+let TABLES_AVAILABLE = null;
+
+function getSupabaseConfig() {
+    const dbKey = window.CONFIG?.SUPABASE?.resolveDbKeyForModule?.(MODULE_KEY) || 'PENALIDADES';
+    const db = window.CONFIG?.SUPABASE?.getConfig?.(dbKey) || {};
+    return { url: db.url, key: db.anonKey };
+}
+
+async function fetchSupabaseTables() {
+    if (TABLES_AVAILABLE) return TABLES_AVAILABLE;
+    const { url, key } = getSupabaseConfig();
+    if (!url || !key) return null;
+
+    try {
+        const resp = await fetch(`${url.replace(/\/$/, '')}/rest/v1/`, {
+            headers: {
+                apikey: key,
+                Accept: 'application/openapi+json'
+            }
+        });
+        if (!resp.ok) return null;
+        const spec = await resp.json();
+        const paths = Object.keys(spec.paths || {});
+        const set = new Set(
+            paths
+                .map(p => p.replace(/^\//, ''))
+                .filter(p => p && p !== '/' && !p.startsWith('rpc/'))
+        );
+        TABLES_AVAILABLE = SUPABASE_TABLES.reduce((acc, name) => {
+            acc[name] = set.has(name);
+            return acc;
+        }, {});
+        return TABLES_AVAILABLE;
+    } catch (err) {
+        console.warn('penalidades: no se pudo leer el esquema de Supabase', err);
+        return null;
+    }
+}
+
+function disablePenalidadesUI(missing) {
+    const form = $('formPenalidad');
+    if (form) {
+        form.querySelectorAll('input, select, textarea, button').forEach(el => {
+            if (el.id === 'notifyClose') return;
+            el.disabled = true;
+        });
+    }
+
+    const table = $('tablaPenalidades');
+    if (table) {
+        const tbody = table.querySelector('tbody');
+        if (tbody) tbody.innerHTML = '';
+    }
+
+    const empty = $('emptyState');
+    if (empty) {
+        const list = (missing || []).join(', ');
+        empty.textContent = list
+            ? `No se puede cargar Penalidades. Faltan tablas en Supabase: ${list}.`
+            : 'No se puede cargar Penalidades.';
+        empty.classList.remove('hidden');
+    }
+
+    notify('warn', 'Base de datos incompleta', 'Faltan tablas en Supabase. Revisa la configuracion del proyecto.');
+}
+
+async function ensurePenalidadesBackend() {
+    const tables = await fetchSupabaseTables();
+    if (!tables) return true;
+    const required = ['penalidades_aplicadas'];
+    const missing = required.filter(name => !tables[name]);
+    if (missing.length) {
+        disablePenalidadesUI(missing);
+        return false;
+    }
+    return true;
+}
 
 // Debounce helper
 function debounce(fn, delay = 300) {
@@ -62,6 +151,17 @@ function bringToFront(el, z = 10000) {
 --------------------------------------------------------------------- */
 
 async function initPenalidades() {
+    const dbKey = window.CONFIG?.SUPABASE?.resolveDbKeyForModule?.(MODULE_KEY) || 'PENALIDADES';
+    const waiter = window.CONFIG?.SUPABASE?.waitForClient;
+    supabase = typeof waiter === 'function' ? await waiter(dbKey) : null;
+    if (!supabase) {
+        disablePenalidadesUI();
+        notify('warn', 'Supabase no disponible', 'No se pudo inicializar la base de datos para Penalidades.');
+        return;
+    }
+
+    const backendReady = await ensurePenalidadesBackend();
+    if (!backendReady) return;
     // Carga inicial
     await cargarEmpresas();
     await cargarPenalidades();
@@ -161,6 +261,14 @@ function buildOrEq(field, values) {
 // =================== DATA LOADERS ===================
 
 async function cargarEmpresas() {
+    const tables = TABLES_AVAILABLE || await fetchSupabaseTables();
+    if (tables && !tables.empresas) {
+        const list = Object.keys(EMPRESA_SYNONYMS);
+        const opts = list.map(name => `<option value="${name}">${name}</option>`).join('');
+        $('empresa').innerHTML = `<option value="">Seleccionar...</option>${opts}`;
+        $('fEmpresa').innerHTML = `<option value="">Todas las empresas</option>${opts}`;
+        return;
+    }
     const { data, error } = await supabase.from('empresas').select('id,nombre').order('nombre');
     if (error) return console.error(error);
     const opts = (data || []).map(e => `<option value="${e.id}">${e.nombre}</option>`).join('');
@@ -176,6 +284,8 @@ async function cargarEmpresas() {
 async function cargarAgentes(empresaId) {
     if (!empresaId) { return; }
     if (AGENTS_CACHE.has(empresaId)) return; // ya cacheado
+    const tables = TABLES_AVAILABLE || await fetchSupabaseTables();
+    if (tables && !tables.agentes_seguridad) return;
 
     // 1) intento por empresa_id (el ideal)
     let { data, error } = await supabase
@@ -212,6 +322,15 @@ async function cargarAgentes(empresaId) {
 }
 
 async function cargarPenalidades() {
+    const tables = TABLES_AVAILABLE || await fetchSupabaseTables();
+    if (tables && !tables.penalidades_catalogo) {
+        const sel = $('penalidad');
+        if (sel) {
+            sel.innerHTML = '<option value="">Catálogo no disponible</option>';
+            sel.disabled = true;
+        }
+        return;
+    }
     const { data, error } = await supabase
         .from('penalidades_catalogo')
         .select('id,item,categoria,penalidad_nombre,tipo_monto,valor')
@@ -229,6 +348,8 @@ async function cargarPenalidades() {
 }
 
 async function obtenerUIT() {
+    const tables = TABLES_AVAILABLE || await fetchSupabaseTables();
+    if (tables && !tables.v_uit_actual) return null;
     const { data, error } = await supabase.from('v_uit_actual').select('valor').single();
     if (error || !data) return null;
     return Number(data.valor);
@@ -403,25 +524,43 @@ function buildRange() {
     return { start, end };
 }
 
+function buildListadoSelect() {
+    const fields = [
+        'id',
+        'fecha',
+        'local',
+        'monto_calculado',
+        'observaciones',
+        'agente_nombre_manual',
+        'agente_id',
+        'empresa_id',
+        'penalidad_id'
+    ];
+    if (TABLES_AVAILABLE?.empresas) fields.push('empresas (nombre)');
+    if (TABLES_AVAILABLE?.agentes_seguridad) fields.push('agentes_seguridad (nombre, dni)');
+    if (TABLES_AVAILABLE?.penalidades_catalogo) fields.push('penalidades_catalogo (item, categoria, penalidad_nombre)');
+    if (TABLES_AVAILABLE?.penalidades_evidencias) fields.push('penalidades_evidencias (url)');
+    return fields.join(',\n      ');
+}
+
 // =================== CRUD LIST & RENDER ===================
 
 async function listar() {
+    const tables = TABLES_AVAILABLE || await fetchSupabaseTables();
+    if (tables && !tables.penalidades_aplicadas) {
+        disablePenalidadesUI(['penalidades_aplicadas']);
+        return;
+    }
     const { empresaId, local, timeMin, timeMax, search } = getFilters();
     const { start, end } = buildRange();
 
     // Cuando hay texto de búsqueda, filtramos en cliente para evitar problemas de filtros sobre relaciones
     const useClientFilter = !!search;
+    const selectFields = buildListadoSelect();
 
     // ---- Consulta base
     let q = supabase.from('penalidades_aplicadas')
-        .select(`
-      id, fecha, local, monto_calculado, observaciones,
-      agente_nombre_manual, agente_id, empresa_id,
-      empresas (nombre),
-      agentes_seguridad (nombre, dni),
-      penalidades_catalogo (item, categoria, penalidad_nombre),
-      penalidades_evidencias (url)
-    `)
+        .select(selectFields)
         .order('fecha', { ascending: false });
 
     if (empresaId) q = q.eq('empresa_id', empresaId);
@@ -441,20 +580,13 @@ async function listar() {
     if (error) { console.error(error); return; }
 
     // Fallback por nombre (sinónimos) si filtraste por empresa y no hubo data
-    if ((data || []).length === 0 && empresaId) {
+    if ((data || []).length === 0 && empresaId && TABLES_AVAILABLE?.empresas) {
         // Quitamos el filtro estricto por empresa_id y reintentamos por nombre de empresa usando sinónimos
         const synonyms = getEmpresaSynonymsBySelected('fEmpresa');
         if (synonyms.length > 0) {
             const orExpr = buildOrEq('empresas.nombre', synonyms);
             let q2 = supabase.from('penalidades_aplicadas')
-                .select(`
-          id, fecha, local, monto_calculado, observaciones,
-          agente_nombre_manual, agente_id, empresa_id,
-          empresas (nombre),
-          agentes_seguridad (nombre, dni),
-          penalidades_catalogo (item, categoria, penalidad_nombre),
-          penalidades_evidencias (url)
-        `)
+                .select(selectFields)
                 .order('fecha', { ascending: false })
                 .or(orExpr); // match por nombre de empresa
 
@@ -473,11 +605,11 @@ async function listar() {
     if (useClientFilter) {
         const term = search.toLowerCase();
         rows = rows.filter(r => {
-            const n1 = (r.agentes_seguridad?.nombre || '').toLowerCase(); // agente
-            const n2 = (r.agente_nombre_manual || '').toLowerCase();      // agente manual
-            const obs = (r.observaciones || '').toLowerCase();            // observaciones
-            const loc = (r.local || '').toLowerCase();                    // local
-            const emp = (r.empresas?.nombre || '').toLowerCase();         // empresa
+            const n1 = (TABLES_AVAILABLE?.agentes_seguridad ? (r.agentes_seguridad?.nombre || '') : '').toLowerCase();
+            const n2 = (r.agente_nombre_manual || '').toLowerCase();
+            const obs = (r.observaciones || '').toLowerCase();
+            const loc = (r.local || '').toLowerCase();
+            const emp = (TABLES_AVAILABLE?.empresas ? (r.empresas?.nombre || '') : (r.empresa_id || '')).toLowerCase();
             return n1.includes(term) || n2.includes(term) || obs.includes(term) || loc.includes(term) || emp.includes(term);
         });
         lastFilteredTotal = rows.length;
@@ -515,11 +647,13 @@ function renderTabla(rows) {
     empty.classList.add('hidden');
 
     tbody.innerHTML = rows.map(r => {
-        const empresa = r.empresas?.nombre || '';
-        const agente = r.agentes_seguridad?.nombre || r.agente_nombre_manual || '(sin nombre)';
-        const pen = r.penalidades_catalogo ? `${r.penalidades_catalogo.item}. ${r.penalidades_catalogo.penalidad_nombre}` : '';
+        const empresa = (TABLES_AVAILABLE?.empresas ? r.empresas?.nombre : null) || r.empresa_id || '';
+        const agente = (TABLES_AVAILABLE?.agentes_seguridad ? r.agentes_seguridad?.nombre : null) || r.agente_nombre_manual || '(sin nombre)';
+        const pen = r.penalidades_catalogo
+            ? `${r.penalidades_catalogo.item}. ${r.penalidades_catalogo.penalidad_nombre}`
+            : (r.penalidad_id ? `ID ${r.penalidad_id}` : '');
         const cat = r.penalidades_catalogo?.categoria || '';
-        const evids = (r.penalidades_evidencias || []).length;
+        const evids = Array.isArray(r.penalidades_evidencias) ? r.penalidades_evidencias.length : 0;
 
         return `<tr class="added" data-id="${r.id}">
       <td>${new Date(r.fecha).toLocaleString('es-PE')}</td>
@@ -580,7 +714,7 @@ function renderSummary(rows) {
     // Totales por categoría (de esta página)
     const map = new Map();
     rows.forEach(r => {
-        const cat = r.penalidades_catalogo?.categoria || '—';
+        const cat = r.penalidades_catalogo?.categoria || 'Sin categoria';
         const v = Number(r.monto_calculado) || 0;
         map.set(cat, (map.get(cat) || 0) + v);
     });
@@ -646,6 +780,8 @@ function renderPreviews(fileList, container) {
 }
 
 async function subirEvidencias(penalidadAplicadaId) {
+    const tables = TABLES_AVAILABLE || await fetchSupabaseTables();
+    if (tables && !tables.penalidades_evidencias) return;
     const files = $('evidencias').files;
     if (!files || files.length === 0) return;
 
@@ -670,6 +806,11 @@ async function onSubmit(e) {
     submitting = true;
 
     try {
+        const tables = TABLES_AVAILABLE || await fetchSupabaseTables();
+        if (tables && !tables.penalidades_aplicadas) {
+            notify('error', 'Error', 'La tabla penalidades_aplicadas no esta disponible.');
+            return;
+        }
         const editId = $('editId').value || null;
 
         const empresa_id = $('empresa').value;
@@ -814,6 +955,11 @@ async function onConfirmDelete() {
 // ==== Galería evidencias + LIGHTBOX ====
 
 async function openGallery(penalidadId) {
+    const tables = TABLES_AVAILABLE || await fetchSupabaseTables();
+    if (tables && !tables.penalidades_evidencias) {
+        notify('warn', 'Evidencias', 'La tabla de evidencias no esta disponible.');
+        return;
+    }
     const { data, error } = await supabase
         .from('penalidades_evidencias')
         .select('url')
