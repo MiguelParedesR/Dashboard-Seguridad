@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lockers - Administracion</title>
+  <link rel="stylesheet" href="../../css/actividades-cctv/lockers.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.15.0/dist/supabase.min.js"></script>
+  <script src="../../config.js"></script>
+  <script src="../../js/core/supabaseClient.js"></script>
+  <script type="module" src="../../js/estilos-sidebar/sidebar-loader.js"></script>
+</head>
+
+<body>
+  <main id="main-content" class="lockers-view" data-lockers-view>
+    <div class="lockers-shell">
+      <header class="lockers-hero">
+        <div>
+          <h1 class="lockers-title">Lockers</h1>
+          <p class="lockers-subtitle">
+            Panel operativo para asignacion, estado y control de lockers en ambientes industriales.
+          </p>
+          <div class="hero-meta">
+            <div class="hero-chip">Total <span id="lockerTotalCount">--</span></div>
+            <div class="hero-chip">Asignados <span id="lockerAssignedCount">--</span></div>
+            <div class="hero-chip">Libres <span id="lockerFreeCount">--</span></div>
+          </div>
+        </div>
+        <div class="hero-actions">
+          <label class="search-field">
+            <span><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></span>
+            <input id="lockerSearch" type="search" placeholder="Buscar por codigo, nombre o DNI" />
+          </label>
+          <div class="hero-filters">
+            <select id="lockerStateFilter">
+              <option value="ALL">Estado: Todos</option>
+              <option value="LIBRE">Libre</option>
+              <option value="OCUPADO">Ocupado</option>
+              <option value="MANTENIMIENTO">Mantenimiento</option>
+              <option value="BLOQUEADO">Bloqueado</option>
+            </select>
+            <select id="lockerGroupFilter">
+              <option value="ALL">Grupo: Todos</option>
+            </select>
+            <label class="toggle">
+              <input type="checkbox" id="lockerShowInactive" />
+              Mostrar inactivos
+            </label>
+            <button class="btn ghost" id="lockerRefresh" type="button">Actualizar</button>
+          </div>
+        </div>
+      </header>
+
+      <section class="lockers-body">
+        <aside class="lockers-panel">
+          <div class="panel-card" id="lockerSelectedCard">
+            <div class="panel-header">
+              <div>
+                <h2>Locker seleccionado</h2>
+                <p id="lockerSelectedHint">Selecciona un locker del mapa.</p>
+              </div>
+              <div class="selected-state" id="lockerSelectedStateBadge">
+                <span class="selected-state-indicator"></span>
+                <span class="selected-state-label" id="lockerSelectedStateLabel">Sin seleccion</span>
+              </div>
+            </div>
+
+            <div class="selected-meta">
+              <div class="meta-item">
+                <span>Codigo</span>
+                <strong id="lockerSelectedCode">--</strong>
+              </div>
+              <div class="meta-item">
+                <span>Grupo</span>
+                <strong class="meta-text" id="lockerSelectedGroup">--</strong>
+              </div>
+              <div class="meta-item">
+                <span>Estado actual</span>
+                <strong class="meta-text" id="lockerSelectedState">--</strong>
+              </div>
+              <div class="meta-item">
+                <span>Actualizado</span>
+                <strong class="meta-text" id="lockerSelectedUpdated">--</strong>
+              </div>
+            </div>
+
+            <div class="form-grid">
+              <div class="field">
+                <label for="lockerGroup">Grupo funcional</label>
+                <select id="lockerGroup"></select>
+              </div>
+              <div class="field">
+                <label for="lockerName">Colaborador</label>
+                <input id="lockerName" type="text" placeholder="Nombre del colaborador" />
+              </div>
+              <div class="field">
+                <label for="lockerDni">DNI (opcional)</label>
+                <input id="lockerDni" type="text" placeholder="Documento" />
+              </div>
+              <div class="field">
+                <label for="lockerDate">Fecha de asignacion</label>
+                <input id="lockerDate" type="date" />
+              </div>
+              <div class="field">
+                <label for="lockerNotes">Observaciones</label>
+                <textarea id="lockerNotes" placeholder="Notas operativas"></textarea>
+              </div>
+            </div>
+
+            <div class="panel-actions">
+              <button class="btn" id="lockerSaveBtn" type="button">Guardar cambios</button>
+              <button class="btn ghost" id="lockerReleaseBtn" type="button">Liberar locker</button>
+            </div>
+          </div>
+
+          <div class="panel-card">
+            <div class="panel-header">
+              <div>
+                <h2>Leyenda operativa</h2>
+                <p>Selecciona un locker y aplica el estado desde aqui.</p>
+              </div>
+            </div>
+            <div class="legend-grid" id="legendGrid"></div>
+          </div>
+
+          <div class="panel-card">
+            <div class="panel-header">
+              <div>
+                <h2>Resumen</h2>
+                <p>Conteo general por estado.</p>
+              </div>
+            </div>
+            <div class="summary-grid" id="summaryGrid"></div>
+          </div>
+        </aside>
+
+        <section class="lockers-map">
+          <div class="map-header">
+            <div class="map-title">Mapa operativo</div>
+            <div class="map-status" id="lockersStatus">Listo para cargar datos.</div>
+          </div>
+          <div id="lockerGroups" class="locker-groups"></div>
+        </section>
+      </section>
+    </div>
+  </main>
+
+  <script src="../../js/actividades-cctv/lockers.js"></script>
+</body>
+
+</html>

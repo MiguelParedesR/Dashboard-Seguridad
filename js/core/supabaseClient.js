@@ -3,6 +3,7 @@
   const SDK_WAIT_MS = 250;
   const SDK_MAX_RETRIES = 40;
   let sdkAttempts = 0;
+  let configWarned = false;
 
   function initSupabaseClient() {
   // 1) Verificar que el SDK está cargado
@@ -12,16 +13,17 @@
   }
   window.__supabase_client_ready = true;
 
-  // 2) Tomar config desde window.CONFIG (si existe) o caer a fallback (lo que ya usabas)
+  // 2) Tomar config desde window.CONFIG (unica fuente de verdad)
   const cfg = (typeof window.CONFIG !== "undefined" ? window.CONFIG : null) || {};
-  const FALLBACK_URL = "https://gimwlrxdfakqtqsvxmxv.supabase.co";
-  const FALLBACK_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdpbXdscnhkZmFrcXRxc3Z4bXh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU5NzE3MzksImV4cCI6MjA3MTU0NzczOX0.J4XGNI9Iy_TEQTWShsMmgMerIWgmizMIL2dB-B1fDoc";
+  const SUPABASE_URL = cfg.SUPABASE_URL;
+  const SUPABASE_KEY = cfg.SUPABASE_ANON_KEY;
 
-  const SUPABASE_URL = cfg.SUPABASE_URL || FALLBACK_URL;
-  const SUPABASE_KEY = cfg.SUPABASE_ANON_KEY || FALLBACK_ANON;
-
-  if (!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY) {
-    console.warn("[Supabase] CONFIG no encontrado. Usando Fallback (URL/Key embebidos).");
+  if (!SUPABASE_URL || !SUPABASE_KEY) {
+    if (!configWarned) {
+      console.error("[Supabase] CONFIG incompleto. Verifica SUPABASE_URL y SUPABASE_ANON_KEY en config.js.");
+      configWarned = true;
+    }
+    return false;
   }
 
   // 3) Crear cliente
@@ -89,7 +91,7 @@
     if (initSupabaseClient()) return;
     sdkAttempts += 1;
     if (sdkAttempts >= SDK_MAX_RETRIES) {
-      console.error("[Supabase] SDK no cargado. Revisa el <script src='@supabase/supabase-js'> en el HTML.");
+      console.error("[Supabase] SDK no cargado o CONFIG incompleto. Revisa el script de supabase y config.js.");
       return;
     }
     setTimeout(waitForSDK, SDK_WAIT_MS);
