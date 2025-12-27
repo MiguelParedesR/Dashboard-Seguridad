@@ -6,7 +6,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Lockers - Administracion</title>
   <link rel="stylesheet" href="../../css/actividades-cctv/lockers.css" />
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.15.0/dist/supabase.min.js"></script>
   <script src="../../config.js"></script>
   <script type="module" src="../../js/estilos-sidebar/sidebar-loader.js"></script>
 </head>
@@ -15,122 +14,123 @@
   <main id="main-content" class="lockers-view" data-lockers-view>
     <div class="lockers-shell">
       <header class="lockers-hero">
-        <div>
+        <div class="hero-left">
+
           <h1 class="lockers-title">Lockers</h1>
-          <div class="hero-meta">
-            <div class="hero-chip">Total <span id="lockerTotalCount">--</span></div>
-            <div class="hero-chip">Asignados <span id="lockerAssignedCount">--</span></div>
-            <div class="hero-chip">Libres <span id="lockerFreeCount">--</span></div>
+          <div class="hero-meta" role="group" aria-label="Estados de lockers">
+            <button class="hero-chip is-active" type="button" data-estado="ALL" aria-pressed="true">
+              Total <span id="lockerTotalCount">--</span>
+            </button>
+            <button class="hero-chip" type="button" data-estado="OCUPADO" aria-pressed="false">
+              Asignados <span id="lockerAssignedCount">--</span>
+            </button>
+            <button class="hero-chip" type="button" data-estado="LIBRE" aria-pressed="false">
+              Libres <span id="lockerFreeCount">--</span>
+            </button>
+            <button class="hero-chip" type="button" data-estado="SE_DESCONOCE" aria-pressed="false">
+              Se desconoce <span id="lockerUnknownCount">--</span>
+            </button>
+            <button class="hero-chip" type="button" data-estado="MANTENIMIENTO" aria-pressed="false">
+              Mantenimiento <span id="lockerMaintenanceCount">--</span>
+            </button>
+            <button class="hero-chip" type="button" data-estado="BLOQUEADO" aria-pressed="false">
+              Bloqueados <span id="lockerBlockedCount">--</span>
+            </button>
           </div>
         </div>
         <div class="hero-actions">
-          <label class="search-field">
-            <span><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></span>
-            <input id="lockerSearch" type="search" placeholder="Buscar por codigo o nombre" />
-          </label>
-          <div class="hero-filters">
-            <select id="lockerStateFilter">
-              <option value="ALL">Estado: Todos</option>
-              <option value="LIBRE">Libre</option>
-              <option value="OCUPADO">Ocupado</option>
-              <option value="MANTENIMIENTO">Mantenimiento</option>
-              <option value="BLOQUEADO">Bloqueado</option>
-            </select>
-            <select id="lockerGroupFilter">
-              <option value="ALL">Grupo: Todos</option>
-            </select>
-            <label class="toggle">
-              <input type="checkbox" id="lockerShowInactive" />
-              Mostrar inactivos
+          <div class="search-block">
+            <label class="search-field">
+              <span><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></span>
+              <input id="lockerSearch" type="search" placeholder="Buscar por codigo o nombre" autocomplete="off" aria-label="Buscar lockers" />
             </label>
-            <button class="btn ghost" id="lockerRefresh" type="button">Actualizar</button>
           </div>
         </div>
       </header>
 
       <section class="lockers-body">
-        <aside class="lockers-panel">
-          <div class="panel-card" id="lockerSelectedCard">
+        <section class="lockers-map">
+          <div class="map-header">
+            <div class="map-title">Vista por estados <span class="map-count" id="lockerMapCount">--</span></div>
+          </div>
+          <div class="map-scroll">
+            <div id="lockerStatusColumns" class="status-columns" role="list"></div>
+          </div>
+        </section>
+
+        <aside class="locker-detail-panel" id="lockerDetailPanel" aria-hidden="true">
+          <div class="panel-card">
             <div class="panel-header">
               <div>
-                <h2>Locker seleccionado</h2>
+                <h2 id="lockerPanelTitle">Detalle del locker</h2>
                 <p id="lockerSelectedHint">Selecciona un locker del mapa.</p>
               </div>
-              <div class="selected-state" id="lockerSelectedStateBadge">
-                <span class="selected-state-indicator"></span>
-                <span class="selected-state-label" id="lockerSelectedStateLabel">Sin seleccion</span>
-              </div>
+              <button class="panel-close" id="lockerPanelClose" type="button" aria-label="Cerrar panel">
+                <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+              </button>
             </div>
 
-            <div class="selected-meta">
-              <div class="meta-item">
+            <div class="panel-hero">
+              <div class="panel-code">
                 <span>Codigo</span>
                 <strong id="lockerSelectedCode">--</strong>
               </div>
+              <div class="panel-state">
+                <span>Estado actual</span>
+                <div class="selected-state" id="lockerSelectedStateBadge">
+                  <span class="selected-state-indicator"></span>
+                  <span class="selected-state-label" id="lockerSelectedStateLabel">Sin seleccion</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel-data">
               <div class="meta-item">
-                <span>Grupo</span>
+                <span>Grupo funcional</span>
                 <strong class="meta-text" id="lockerSelectedGroup">--</strong>
               </div>
               <div class="meta-item">
-                <span>Estado actual</span>
-                <strong class="meta-text" id="lockerSelectedState">--</strong>
+                <span>Colaborador</span>
+                <strong class="meta-text" id="lockerSelectedAssignee">--</strong>
               </div>
               <div class="meta-item">
-                <span>Actualizado</span>
-                <strong class="meta-text" id="lockerSelectedUpdated">--</strong>
+                <span>Fecha de asignacion</span>
+                <strong class="meta-text" id="lockerSelectedDate">--</strong>
               </div>
             </div>
 
             <div class="form-grid">
-              <div class="field">
+              <div class="field field-group">
                 <label for="lockerGroup">Grupo funcional</label>
                 <select id="lockerGroup"></select>
               </div>
-              <div class="field">
+              <div class="field field-name">
                 <label for="lockerName">Colaborador</label>
                 <input id="lockerName" type="text" placeholder="Nombre del colaborador" />
               </div>
-              <div class="field">
+              <div class="field field-date">
                 <label for="lockerDate">Fecha de asignacion</label>
                 <input id="lockerDate" type="date" />
               </div>
             </div>
 
             <div class="panel-actions">
-              <button class="btn" id="lockerSaveBtn" type="button">Guardar cambios</button>
-              <button class="btn ghost" id="lockerReleaseBtn" type="button">Liberar locker</button>
+              <button class="btn" id="lockerAssignBtn" type="button">Asignar</button>
+              <button class="btn ghost" id="lockerReleaseBtn" type="button">Liberar</button>
+              <button class="btn ghost" id="lockerBlockBtn" type="button">Bloquear</button>
             </div>
-          </div>
 
-          <div class="panel-card">
-            <div class="panel-header">
-              <div>
-                <h2>Leyenda operativa</h2>
-                <p>Selecciona un locker y aplica el estado desde aqui.</p>
-              </div>
-            </div>
-            <div class="legend-grid" id="legendGrid"></div>
-          </div>
-
-          <div class="panel-card">
-            <div class="panel-header">
-              <div>
-                <h2>Resumen</h2>
-                <p>Conteo general por estado.</p>
-              </div>
-            </div>
-            <div class="summary-grid" id="summaryGrid"></div>
           </div>
         </aside>
-
-        <section class="lockers-map">
-          <div class="map-header">
-            <div class="map-title">Mapa operativo</div>
-            <div class="map-status" id="lockersStatus">Listo para cargar datos.</div>
-          </div>
-          <div id="lockerGroups" class="locker-groups"></div>
-        </section>
       </section>
+    </div>
+
+    <div class="panel-backdrop" id="lockerPanelBackdrop" aria-hidden="true"></div>
+    <div class="locker-toast" id="lockerToast" role="status" aria-live="polite"></div>
+    <div class="locker-quick-menu" id="lockerQuickMenu" role="menu" aria-hidden="true">
+      <button type="button" class="quick-action" id="lockerQuickAssign" role="menuitem">Asignar</button>
+      <button type="button" class="quick-action" id="lockerQuickRelease" role="menuitem">Liberar</button>
+      <button type="button" class="quick-action" id="lockerQuickBlock" role="menuitem">Bloquear</button>
     </div>
   </main>
 

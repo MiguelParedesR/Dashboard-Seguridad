@@ -1,7 +1,11 @@
 // Configuraci?n global del proyecto (aseguramos que quede en window)
 (function () {
+  if (window.CONFIG && window.CONFIG.__initialized) {
+    return;
+  }
   const projectName = "Dashboard Seguridad TPP";
   const version = "1.0.0";
+  const SUPABASE_SDK_URL = "https://unpkg.com/@supabase/supabase-js@2.45.4/dist/umd/supabase.js";
 
   // Supabase: credenciales centralizadas por modulo/menu.
   const PRIMARY_URL = "https://qjefbngewwthawycvutl.supabase.co";
@@ -11,71 +15,108 @@
   const DATABASES = [
     {
       key: "LOCKERS",
-      title: "Lockers",
+      title: "Lockers / Core",
       url: PRIMARY_URL,
-      anonKey: PRIMARY_ANON_KEY
+      anonKey: PRIMARY_ANON_KEY,
+      modules: ["lockers", "dashboard", "login", "sidebar"]
     },
     {
       key: "PENALIDADES",
       title: "Penalidades",
       url: PENALIDADES_URL,
-      anonKey: PENALIDADES_ANON_KEY
-    },
-    {
-      key: "DASHBOARD",
-      title: "Dashboard",
-      url: PRIMARY_URL,
-      anonKey: PRIMARY_ANON_KEY
-    },
-    {
-      key: "LOGIN",
-      title: "Login",
-      url: PRIMARY_URL,
-      anonKey: PRIMARY_ANON_KEY
+      anonKey: PENALIDADES_ANON_KEY,
+      modules: ["penalidades", "excel"]
     }
   ];
+
+  const DB_ALIASES = {
+    DASHBOARD: "LOCKERS",
+    LOGIN: "LOCKERS"
+  };
 
   const DATABASES_BY_KEY = DATABASES.reduce((acc, db) => {
     acc[db.key] = db;
     return acc;
   }, {});
 
-  const MODULE_DB_MAP = {
-    lockers: "LOCKERS",
-    penalidades: "PENALIDADES",
-    excel: "PENALIDADES",
-    dashboard: "DASHBOARD",
-    login: "LOGIN",
-    sidebar: "DASHBOARD",
-    default: "LOCKERS"
-  };
+  const MODULE_DB_MAP = DATABASES.reduce((acc, db) => {
+    (db.modules || []).forEach((moduleName) => {
+      acc[moduleName] = db.key;
+    });
+    return acc;
+  }, {});
+  MODULE_DB_MAP.default = "LOCKERS";
 
-  const CLIENTS = {};
+  const CLIENTS = window.__SUPABASE_CLIENTS || (window.__SUPABASE_CLIENTS = {});
   let sdkWarned = false;
 
   function getSdk() {
-    if (window.supabase && typeof window.supabase.createClient === "function") {
-      if (!window.supabaseSDK) window.supabaseSDK = window.supabase;
+    if (window.supabaseSDK && typeof window.supabaseSDK.createClient === "function") {
       return window.supabaseSDK;
     }
-    if (window.supabaseSDK && typeof window.supabaseSDK.createClient === "function") {
+    if (window.supabase && typeof window.supabase.createClient === "function") {
+      window.supabaseSDK = window.supabase;
       return window.supabaseSDK;
     }
     return null;
   }
 
+  function loadSupabaseSdk() {
+    const existing = getSdk();
+    if (existing) return Promise.resolve(existing);
+    if (window.__SUPABASE_SDK_LOADING) return window.__SUPABASE_SDK_LOADING;
+    window.__SUPABASE_SDK_LOADING = new Promise((resolve) => {
+      if (typeof document === "undefined" || !document.head) {
+        resolve(null);
+        return;
+      }
+      const script = document.createElement("script");
+      script.src = SUPABASE_SDK_URL;
+      script.async = true;
+      script.defer = true;
+      script.onload = () => resolve(getSdk());
+      script.onerror = () => resolve(null);
+      document.head.appendChild(script);
+    });
+    return window.__SUPABASE_SDK_LOADING;
+  }
+
+  function normalizeDbKey(dbKey) {
+    if (!dbKey) return dbKey;
+    return DB_ALIASES[dbKey] || dbKey;
+  }
+
   function getDbConfig(dbKey) {
-    return DATABASES_BY_KEY[dbKey] || null;
+    const resolved = normalizeDbKey(dbKey);
+    return DATABASES_BY_KEY[resolved] || null;
+  }
+
+  function getClientKey(db) {
+    return `${db.url}::${db.anonKey}`;
+  }
+
+  function buildStorageKey(db) {
+    const raw = db.key || db.title || db.url || "supabase";
+    const normalized = String(raw).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+    return `sb-${normalized}`;
   }
 
   function createClient(dbKey) {
     const db = getDbConfig(dbKey);
     if (!db || !db.url || !db.anonKey) return null;
-    if (CLIENTS[dbKey]) return CLIENTS[dbKey];
+    const clientKey = getClientKey(db);
+    if (CLIENTS[clientKey]) return CLIENTS[clientKey];
     const sdk = getSdk();
     if (!sdk) return null;
-    CLIENTS[dbKey] = sdk.createClient(db.url, db.anonKey);
-    return CLIENTS[dbKey];
+    CLIENTS[clientKey] = sdk.createClient(db.url, db.anonKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+        storageKey: buildStorageKey(db)
+      }
+    });
+    return CLIENTS[clientKey];
   }
 
   function getClient(dbKey) {
@@ -89,7 +130,9 @@
   function setDefaultClient(dbKey) {
     const client = createClient(dbKey);
     if (!client) return null;
-    window.supabase = client;
+    if (!window.supabase || typeof window.supabase.createClient !== "function") {
+      window.supabase = client;
+    }
     window.supabaseClient = client;
     window.SUPABASE_CLIENT = client;
     window.__supabase_client__ = client;
@@ -99,7 +142,7 @@
   function waitForClient(dbKey, options = {}) {
     const maxAttempts = options.maxAttempts ?? 40;
     const waitMs = options.waitMs ?? 250;
-    return new Promise((resolve) => {
+    return loadSupabaseSdk().then(() => new Promise((resolve) => {
       let attempts = 0;
       const tick = () => {
         const client = createClient(dbKey);
@@ -119,23 +162,27 @@
         setTimeout(tick, waitMs);
       };
       tick();
-    });
+    }));
   }
 
   const defaultDbKey = MODULE_DB_MAP.default;
   waitForClient(defaultDbKey).then(() => setDefaultClient(defaultDbKey));
 
   window.CONFIG = {
+    __initialized: true,
     projectName,
     version,
+    SUPABASE_SDK_URL,
     SUPABASE_URL: PRIMARY_URL,
     SUPABASE_ANON_KEY: PRIMARY_ANON_KEY,
     DATABASES,
     DATABASES_BY_KEY,
+    DB_ALIASES,
     MODULE_DB_MAP,
     SUPABASE: {
       getClient,
       waitForClient,
+      loadSdk: loadSupabaseSdk,
       getConfig: getDbConfig,
       resolveDbKeyForModule,
       setDefaultClient

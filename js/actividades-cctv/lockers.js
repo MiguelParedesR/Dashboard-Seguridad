@@ -1,48 +1,84 @@
+
 (() => {
   const GROUP_ORDER = ["LLENOS", "LCL", "MAQUINARIAS"];
   const STATE_META = {
     LIBRE: {
       label: "Libre",
-      color: "#11b4d7",
-      icon: "fa-unlock",
+      color: "#1f9f6a",
+      text: "#ffffff",
+      icon: "fa-lock-open",
       hint: "Disponible"
     },
     OCUPADO: {
-      label: "Ocupado",
-      color: "#f2c94c",
+      label: "Asignado",
+      color: "#e3b63d",
+      text: "#3a2a00",
       icon: "fa-lock",
       hint: "Asignado"
     },
+    SE_DESCONOCE: {
+      label: "Se desconoce",
+      color: "#7c58e3",
+      text: "#ffffff",
+      icon: "fa-circle-question",
+      hint: "Sin dato"
+    },
     MANTENIMIENTO: {
       label: "Mantenimiento",
-      color: "#64748b",
+      color: "#2f80d3",
+      text: "#ffffff",
       icon: "fa-screwdriver-wrench",
       hint: "Revision"
     },
     BLOQUEADO: {
       label: "Bloqueado",
-      color: "#ef4444",
+      color: "#e03a3a",
+      text: "#ffffff",
       icon: "fa-ban",
       hint: "No disponible"
     }
   };
-  const STATE_ORDER = ["LIBRE", "OCUPADO", "MANTENIMIENTO", "BLOQUEADO"];
+  const STATE_ORDER = ["LIBRE", "OCUPADO", "SE_DESCONOCE", "MANTENIMIENTO", "BLOQUEADO"];
+
+  const VIRTUAL_LIMIT = 40;
+  const VIRTUAL_STEP = 20;
+  const LONG_PRESS_MS = 520;
+  const COLLAPSE_KEY = "lockers:collapsed";
+  const HEADER_COMPACT_Y = 140;
+  const HEADER_EXPAND_Y = 80;
 
   const state = {
     lockers: [],
     selectedId: null,
     filters: {
       search: "",
-      estado: "ALL",
-      grupo: "ALL",
-      showInactive: false
+      estado: "ALL"
     },
     channel: null,
-    active: false
+    active: false,
+    loading: false,
+    loadingColumns: new Set(),
+    updatedIds: new Set(),
+    updateTimers: new Map(),
+    virtualization: {
+      enabled: false,
+      limits: {}
+    },
+    collapsedStates: {},
+    quickMenu: {
+      open: false,
+      lockerId: null
+    },
+    isCompact: false,
+    panelLocked: false,
+    suppressClick: false,
+    touchStart: null
   };
 
   let dom = {};
   let searchTimer = null;
+  let longPressTimer = null;
+  let scrollTicking = false;
 
   const MODULE_KEY = "lockers";
 
@@ -64,7 +100,12 @@
 
   function normalizeEstado(value) {
     if (!value) return "LIBRE";
-    return String(value).trim().toUpperCase();
+    const normalized = String(value).trim().toUpperCase().replace(/\s+/g, "_");
+    if (normalized === "ASIGNADO") return "OCUPADO";
+    if (normalized === "DESCONOCIDO" || normalized === "SE_DESCONOCE" || normalized === "SE_DESCONOCIDO") {
+      return "SE_DESCONOCE";
+    }
+    return normalized;
   }
 
   function normalizeGrupo(value) {
@@ -92,33 +133,129 @@
     }
   }
 
+  function readCollapseState() {
+    try {
+      const raw = localStorage.getItem(COLLAPSE_KEY);
+      if (!raw) return {};
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch (err) {
+      return {};
+    }
+  }
+
+  function saveCollapseState() {
+    try {
+      localStorage.setItem(COLLAPSE_KEY, JSON.stringify(state.collapsedStates));
+    } catch (err) {
+      // ignore storage issues
+    }
+  }
+
+  function formatRelativeTime(value) {
+    if (!value) return "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    const diffMs = Date.now() - date.getTime();
+    const diffMinutes = Math.max(0, Math.floor(diffMs / 60000));
+    if (diffMinutes < 1) return "hace instantes";
+    if (diffMinutes < 60) return diffMinutes === 1 ? "hace 1 min" : `hace ${diffMinutes} min`;
+    const diffHours = Math.floor(diffMinutes / 60);
+    if (diffHours < 24) return diffHours === 1 ? "hace 1 h" : `hace ${diffHours} h`;
+    const diffDays = Math.floor(diffHours / 24);
+    return diffDays === 1 ? "hace 1 dia" : `hace ${diffDays} dias`;
+  }
+
+  function hexToRgba(hex, alpha) {
+    if (!hex) return `rgba(255, 255, 255, ${alpha})`;
+    const raw = hex.replace("#", "");
+    if (raw.length !== 6) return `rgba(255, 255, 255, ${alpha})`;
+    const r = parseInt(raw.slice(0, 2), 16);
+    const g = parseInt(raw.slice(2, 4), 16);
+    const b = parseInt(raw.slice(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+
+  function setCompactHeader(isCompact) {
+    if (state.isCompact === isCompact) return;
+    state.isCompact = isCompact;
+    dom.root?.classList.toggle("is-compact", isCompact);
+  }
+
+  function handleHeaderScroll() {
+    if (scrollTicking) return;
+    scrollTicking = true;
+    window.requestAnimationFrame(() => {
+      if (!state.active || !dom.root) {
+        scrollTicking = false;
+        return;
+      }
+      const y = window.scrollY || document.documentElement.scrollTop || 0;
+      if (!state.isCompact && y > HEADER_COMPACT_Y) {
+        setCompactHeader(true);
+      } else if (state.isCompact && y < HEADER_EXPAND_Y) {
+        setCompactHeader(false);
+      }
+      scrollTicking = false;
+    });
+  }
   function setStatus(message, type = "info") {
-    if (!dom.status) return;
-    dom.status.textContent = message;
-    dom.status.classList.remove("success", "error", "warn");
-    if (type === "success") dom.status.classList.add("success");
-    if (type === "error") dom.status.classList.add("error");
-    if (type === "warn") dom.status.classList.add("warn");
+    if (dom.status) {
+      dom.status.textContent = message;
+      dom.status.classList.remove("success", "error", "warn");
+      if (type === "success") dom.status.classList.add("success");
+      if (type === "error") dom.status.classList.add("error");
+      if (type === "warn") dom.status.classList.add("warn");
+    }
+    if (type !== "info") showToast(message, type);
+  }
+
+  function showToast(message, type) {
+    if (!dom.toast) return;
+    dom.toast.textContent = message;
+    dom.toast.classList.remove("success", "error", "warn");
+    if (type) dom.toast.classList.add(type);
+    dom.toast.classList.add("is-visible");
+    clearTimeout(dom.toastTimer);
+    dom.toastTimer = setTimeout(() => {
+      dom.toast.classList.remove("is-visible");
+    }, 2400);
+  }
+
+  function escapeHtml(text) {
+    return String(text)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function highlightText(text, query) {
+    const value = String(text || "");
+    const normalized = String(query || "").trim().toLowerCase();
+    if (!normalized) return escapeHtml(value);
+    const lower = value.toLowerCase();
+    const index = lower.indexOf(normalized);
+    if (index === -1) return escapeHtml(value);
+    const before = escapeHtml(value.slice(0, index));
+    const match = escapeHtml(value.slice(index, index + normalized.length));
+    const after = escapeHtml(value.slice(index + normalized.length));
+    return `${before}<mark>${match}</mark>${after}`;
   }
 
   function getSelectedLocker() {
     return state.lockers.find((locker) => locker.id === state.selectedId) || null;
   }
 
-  function applyFilters(list) {
-    const search = state.filters.search;
-    const estado = state.filters.estado;
-    const grupo = state.filters.grupo;
-    const showInactive = state.filters.showInactive;
+  function applyFilters(list, override = {}) {
+    const searchValue = override.search !== undefined ? override.search : state.filters.search;
+    const search = String(searchValue || "").trim().toLowerCase();
+    const estado = override.estado !== undefined ? override.estado : state.filters.estado;
 
     return list.filter((locker) => {
-      if (!showInactive && locker.activo === false) return false;
-
-      const lockerEstado = normalizeEstado(locker.estado);
-      const lockerGrupo = normalizeGrupo(locker.grupo);
-
-      if (estado !== "ALL" && lockerEstado !== estado) return false;
-      if (grupo !== "ALL" && lockerGrupo !== grupo) return false;
+      if (locker.activo === false) return false;
+      if (estado !== "ALL" && normalizeEstado(locker.estado) !== estado) return false;
 
       if (!search) return true;
       const haystack = [locker.codigo, locker.colaborador_nombre]
@@ -127,6 +264,15 @@
         .join(" ");
       return haystack.includes(search);
     });
+  }
+
+  function sortLockers(list) {
+    return list.slice().sort((a, b) =>
+      String(a.codigo || "").localeCompare(String(b.codigo || ""), "es", {
+        numeric: true,
+        sensitivity: "base"
+      })
+    );
   }
 
   function getGroupOptions(lockers) {
@@ -140,7 +286,7 @@
   }
 
   function ensureGroupSelectOptions(lockers) {
-    if (!dom.groupSelect || !dom.groupFilter) return;
+    if (!dom.groupSelect) return;
 
     const options = getGroupOptions(lockers);
     const currentSelect = dom.groupSelect.value;
@@ -156,67 +302,13 @@
     if (currentSelect) {
       dom.groupSelect.value = currentSelect;
     }
-
-    const current = dom.groupFilter.value;
-    dom.groupFilter.innerHTML = "";
-    const allOption = document.createElement("option");
-    allOption.value = "ALL";
-    allOption.textContent = "Grupo: Todos";
-    dom.groupFilter.appendChild(allOption);
-
-    options.forEach((group) => {
-      const option = document.createElement("option");
-      option.value = group;
-      option.textContent = group;
-      dom.groupFilter.appendChild(option);
-    });
-
-    if (current) {
-      dom.groupFilter.value = current;
-    }
-  }
-
-  function renderLegend() {
-    if (!dom.legendGrid) return;
-    dom.legendGrid.innerHTML = "";
-
-    STATE_ORDER.forEach((key) => {
-      const meta = STATE_META[key];
-      const item = document.createElement("button");
-      item.type = "button";
-      item.className = "legend-item";
-      item.dataset.estado = key;
-      item.style.setProperty("--legend-color", meta.color);
-
-      const swatch = document.createElement("div");
-      swatch.className = "legend-swatch";
-      const icon = document.createElement("i");
-      icon.className = `fa-solid ${meta.icon}`;
-      icon.setAttribute("aria-hidden", "true");
-      swatch.appendChild(icon);
-
-      const text = document.createElement("div");
-      text.className = "legend-text";
-      const title = document.createElement("strong");
-      title.textContent = meta.label;
-      const hint = document.createElement("span");
-      hint.textContent = meta.hint;
-
-      text.appendChild(title);
-      text.appendChild(hint);
-
-      item.appendChild(swatch);
-      item.appendChild(text);
-      dom.legendGrid.appendChild(item);
-    });
   }
 
   function renderSummary() {
-    if (!dom.summaryGrid) return;
-
     const counts = {
       TOTAL: state.lockers.length,
       LIBRE: 0,
+      SE_DESCONOCE: 0,
       OCUPADO: 0,
       MANTENIMIENTO: 0,
       BLOQUEADO: 0
@@ -227,216 +319,379 @@
       if (counts[key] !== undefined) counts[key] += 1;
     });
 
-    dom.summaryGrid.innerHTML = "";
-    const summaryItems = [
-      { label: "Total", value: counts.TOTAL },
-      { label: "Libres", value: counts.LIBRE },
-      { label: "Ocupados", value: counts.OCUPADO },
-      { label: "Mantenimiento", value: counts.MANTENIMIENTO },
-      { label: "Bloqueados", value: counts.BLOQUEADO }
-    ];
-
-    summaryItems.forEach((item) => {
-      const row = document.createElement("div");
-      row.className = "summary-item";
-      const label = document.createElement("span");
-      label.textContent = item.label;
-      const value = document.createElement("span");
-      value.textContent = item.value;
-      row.appendChild(label);
-      row.appendChild(value);
-      dom.summaryGrid.appendChild(row);
-    });
-
     if (dom.totalCount) dom.totalCount.textContent = counts.TOTAL;
-    if (dom.assignedCount) {
-      const assigned = state.lockers.filter((locker) => locker.colaborador_nombre).length;
-      dom.assignedCount.textContent = assigned;
-    }
+    if (dom.assignedCount) dom.assignedCount.textContent = counts.OCUPADO;
     if (dom.freeCount) dom.freeCount.textContent = counts.LIBRE;
-  }
-
-  function renderSelected() {
-    const locker = getSelectedLocker();
-    const hasSelection = !!locker;
-
-    dom.selectedHint.textContent = hasSelection
-      ? "Edita la ficha o cambia el estado desde la leyenda."
-      : "Selecciona un locker del mapa.";
-
-    dom.saveBtn.disabled = !hasSelection;
-    dom.releaseBtn.disabled = !hasSelection;
-
-    dom.nameInput.disabled = !hasSelection;
-    dom.dateInput.disabled = !hasSelection;
-    dom.groupSelect.disabled = !hasSelection;
-
-    if (!hasSelection) {
-      dom.selectedCode.textContent = "--";
-      dom.selectedGroup.textContent = "--";
-      dom.selectedState.textContent = "--";
-      dom.selectedUpdated.textContent = "--";
-      dom.nameInput.value = "";
-      dom.dateInput.value = "";
-      dom.selectedStateBadge.style.setProperty("--state-color", "#9ca3af");
-      dom.selectedStateLabel.textContent = "Sin seleccion";
-      return;
-    }
-
-    const meta = getStateMeta(locker.estado);
-    dom.selectedCode.textContent = locker.codigo || "--";
-    dom.selectedGroup.textContent = normalizeGrupo(locker.grupo);
-    dom.selectedState.textContent = meta.label;
-    dom.selectedUpdated.textContent = formatDate(locker.updated_at || locker.created_at);
-
-    dom.nameInput.value = locker.colaborador_nombre || "";
-    dom.dateInput.value = locker.fecha_asignacion || "";
-
-    dom.groupSelect.value = normalizeGrupo(locker.grupo);
-    dom.selectedStateBadge.style.setProperty("--state-color", locker.color_estado || meta.color);
-    dom.selectedStateLabel.textContent = meta.label;
+    if (dom.unknownCount) dom.unknownCount.textContent = counts.SE_DESCONOCE;
+    if (dom.maintenanceCount) dom.maintenanceCount.textContent = counts.MANTENIMIENTO;
+    if (dom.blockedCount) dom.blockedCount.textContent = counts.BLOQUEADO;
   }
 
   function updateLegendActive() {
-    if (!dom.legendGrid) return;
-    const locker = getSelectedLocker();
-    const activeState = locker ? normalizeEstado(locker.estado) : null;
-
-    dom.legendGrid.querySelectorAll(".legend-item").forEach((item) => {
-      const isActive = item.dataset.estado === activeState;
-      item.classList.toggle("is-active", isActive);
+    if (!dom.legendChips) return;
+    dom.legendChips.forEach((chip) => {
+      const estado = chip.dataset.estado || "ALL";
+      const isActive =
+        (estado === "ALL" && state.filters.estado === "ALL") || estado === state.filters.estado;
+      chip.classList.toggle("is-active", isActive);
+      chip.setAttribute("aria-pressed", isActive ? "true" : "false");
     });
   }
 
-  function buildGroupMap(list) {
+  function buildStateMap(list) {
     const map = new Map();
+    STATE_ORDER.forEach((key) => map.set(key, []));
     list.forEach((locker) => {
-      const group = normalizeGrupo(locker.grupo);
-      if (!map.has(group)) map.set(group, []);
-      map.get(group).push(locker);
+      const estado = normalizeEstado(locker.estado);
+      if (!map.has(estado)) map.set(estado, []);
+      map.get(estado).push(locker);
     });
     return map;
   }
 
-  function renderGroups() {
-    if (!dom.groupsContainer) return;
-    const filtered = applyFilters(state.lockers);
-    dom.groupsContainer.innerHTML = "";
+  function resetVirtualization() {
+    state.virtualization.enabled = state.lockers.length > 100;
+    state.virtualization.limits = {};
+    if (!state.virtualization.enabled) return;
+    STATE_ORDER.forEach((key) => {
+      state.virtualization.limits[key] = VIRTUAL_LIMIT;
+    });
+  }
 
-    if (!filtered.length) {
-      const empty = document.createElement("div");
-      empty.className = "empty-state";
-      empty.textContent = "No hay lockers con los filtros actuales.";
-      dom.groupsContainer.appendChild(empty);
-      return;
+  function getVirtualItems(estado, items) {
+    if (!state.virtualization.enabled) return items;
+    const limit = state.virtualization.limits[estado] || VIRTUAL_LIMIT;
+    return items.slice(0, limit);
+  }
+
+  function getScrollPositions() {
+    if (!dom.columnsContainer) return {};
+    const positions = {};
+    dom.columnsContainer.querySelectorAll(".status-column").forEach((column) => {
+      const key = column.dataset.estado;
+      const scroll = column.querySelector(".status-scroll");
+      if (key && scroll) positions[key] = scroll.scrollTop;
+    });
+    return positions;
+  }
+
+  function restoreScrollPositions(positions) {
+    if (!dom.columnsContainer) return;
+    dom.columnsContainer.querySelectorAll(".status-column").forEach((column) => {
+      const key = column.dataset.estado;
+      const scroll = column.querySelector(".status-scroll");
+      if (key && scroll && positions[key] !== undefined) {
+        scroll.scrollTop = positions[key];
+      }
+    });
+  }
+  function renderSkeletonColumn(estadoKey) {
+    const meta = STATE_META[estadoKey];
+    const column = document.createElement("section");
+    column.className = "status-column";
+    column.dataset.estado = estadoKey;
+    column.style.setProperty("--state-color", meta.color);
+    column.style.setProperty("--state-ink", meta.text);
+    column.style.setProperty("--state-tint", hexToRgba(meta.color, 0.08));
+
+    const header = document.createElement("div");
+    header.className = "status-column-header";
+    const title = document.createElement("div");
+    title.className = "status-title";
+    const dot = document.createElement("span");
+    dot.className = "status-dot";
+    const label = document.createElement("span");
+    label.textContent = meta.label;
+    title.appendChild(dot);
+    title.appendChild(label);
+    const count = document.createElement("span");
+    count.className = "status-count";
+    count.textContent = "--";
+    header.appendChild(title);
+    header.appendChild(count);
+
+    const scroll = document.createElement("div");
+    scroll.className = "status-scroll";
+    const list = document.createElement("div");
+    list.className = "status-list";
+    for (let i = 0; i < 4; i += 1) {
+      const card = document.createElement("div");
+      card.className = "skeleton-card";
+      list.appendChild(card);
+    }
+    scroll.appendChild(list);
+
+    column.appendChild(header);
+    column.appendChild(scroll);
+    return column;
+  }
+
+  function renderStatusColumn(estadoKey, items) {
+    const meta = STATE_META[estadoKey];
+    const isCollapsed = !!state.collapsedStates[estadoKey];
+    const column = document.createElement("section");
+    column.className = "status-column";
+    column.dataset.estado = estadoKey;
+    column.dataset.total = String(items.length);
+    column.style.setProperty("--state-color", meta.color);
+    column.style.setProperty("--state-ink", meta.text);
+    column.style.setProperty("--state-tint", hexToRgba(meta.color, 0.08));
+    column.classList.toggle("is-collapsed", isCollapsed);
+    if (state.loadingColumns.has(estadoKey)) column.classList.add("is-loading");
+
+    const header = document.createElement("div");
+    header.className = "status-column-header";
+
+    const title = document.createElement("div");
+    title.className = "status-title";
+    const dot = document.createElement("span");
+    dot.className = "status-dot";
+    const label = document.createElement("span");
+    label.textContent = meta.label;
+    title.appendChild(dot);
+    title.appendChild(label);
+
+    const count = document.createElement("span");
+    count.className = "status-count";
+    count.textContent = `${items.length}`;
+
+    const actions = document.createElement("div");
+    actions.className = "status-actions";
+
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "column-toggle";
+    toggle.dataset.estado = estadoKey;
+    toggle.setAttribute("aria-expanded", isCollapsed ? "false" : "true");
+    toggle.setAttribute("aria-label", isCollapsed ? "Expandir columna" : "Colapsar columna");
+    const toggleIcon = document.createElement("span");
+    toggleIcon.textContent = ">";
+    toggle.appendChild(toggleIcon);
+
+    actions.appendChild(count);
+    actions.appendChild(toggle);
+
+    header.appendChild(title);
+    header.appendChild(actions);
+
+    if (isCollapsed) {
+      column.appendChild(header);
+      return column;
     }
 
-    const groupMap = buildGroupMap(filtered);
-    const dynamicGroups = Array.from(groupMap.keys()).filter(
-      (group) => !GROUP_ORDER.includes(group)
-    );
-    dynamicGroups.sort();
-    const groups = [...GROUP_ORDER, ...dynamicGroups];
+    const scroll = document.createElement("div");
+    scroll.className = "status-scroll";
 
-    groups.forEach((group, index) => {
-      const items = groupMap.get(group) || [];
-      const section = document.createElement("section");
-      section.className = "locker-group";
-      section.dataset.group = group;
-      section.style.animationDelay = `${index * 0.05}s`;
+    const list = document.createElement("div");
+    list.className = "status-list";
 
-      const header = document.createElement("div");
-      header.className = "group-header";
-      const title = document.createElement("h3");
-      title.textContent = group;
-      const count = document.createElement("span");
-      count.textContent = `${items.length} lockers`;
-      header.appendChild(title);
-      header.appendChild(count);
-
-      const grid = document.createElement("div");
-      grid.className = "locker-grid";
-
-      if (!items.length) {
-        const empty = document.createElement("div");
-        empty.className = "empty-state";
-        empty.textContent = "Sin lockers en este grupo.";
-        grid.appendChild(empty);
-      } else {
-        items
-          .slice()
-          .sort((a, b) =>
-            String(a.codigo || "").localeCompare(String(b.codigo || ""), "es", {
-              numeric: true,
-              sensitivity: "base"
-            })
-          )
-          .forEach((locker) => grid.appendChild(renderLockerCard(locker)));
+    if (!items.length) {
+      const empty = document.createElement("div");
+      empty.className = "empty-state";
+      empty.textContent = "Sin lockers en este estado.";
+      list.appendChild(empty);
+    } else {
+      const sorted = sortLockers(items);
+      const visible = getVirtualItems(estadoKey, sorted);
+      visible.forEach((locker) => list.appendChild(renderLockerCard(locker)));
+      if (state.virtualization.enabled && sorted.length > visible.length) {
+        const more = document.createElement("div");
+        more.className = "empty-state";
+        more.textContent = "Desliza para cargar mas";
+        list.appendChild(more);
       }
+    }
 
-      section.appendChild(header);
-      section.appendChild(grid);
-      dom.groupsContainer.appendChild(section);
-    });
+    scroll.appendChild(list);
+    column.appendChild(header);
+    column.appendChild(scroll);
+
+    return column;
   }
 
   function renderLockerCard(locker) {
     const meta = getStateMeta(locker.estado);
+    const searchValue = String(state.filters.search || "").trim();
+    const estado = normalizeEstado(locker.estado);
     const card = document.createElement("button");
     card.type = "button";
     card.className = "locker-card";
     card.dataset.id = locker.id;
+    card.dataset.estado = estado;
     card.style.setProperty("--state-color", locker.color_estado || meta.color);
+    card.style.setProperty("--state-ink", meta.text);
     if (locker.id === state.selectedId) card.classList.add("is-selected");
+    if (state.updatedIds.has(locker.id)) card.classList.add("is-updated");
 
-    const header = document.createElement("div");
-    header.className = "locker-card-header";
-    const code = document.createElement("div");
-    code.className = "locker-code";
-    code.textContent = locker.codigo || "--";
     const stateLabel = document.createElement("div");
-    stateLabel.className = "locker-state";
+    stateLabel.className = "card-state";
     stateLabel.textContent = meta.label;
-    header.appendChild(code);
-    header.appendChild(stateLabel);
+
+    const code = document.createElement("div");
+    code.className = "card-code";
+    code.innerHTML = highlightText(locker.codigo || "--", searchValue);
 
     const assignee = document.createElement("div");
-    assignee.className = "locker-assignee";
-    assignee.textContent = locker.colaborador_nombre || "Sin asignar";
-
-    const metaLine = document.createElement("div");
-    metaLine.className = "locker-meta";
-    const parts = [];
-    if (locker.fecha_asignacion) parts.push(formatDate(locker.fecha_asignacion));
-    metaLine.textContent = parts.length ? parts.join(" | ") : meta.hint;
+    assignee.className = "card-assignee";
+    if (locker.colaborador_nombre) {
+      assignee.innerHTML = highlightText(locker.colaborador_nombre, searchValue);
+    } else {
+      assignee.textContent = meta.hint;
+      assignee.classList.add("is-muted");
+    }
 
     const iconWrap = document.createElement("div");
-    iconWrap.className = "locker-icon";
+    iconWrap.className = "card-icon";
     const icon = document.createElement("i");
     const iconClass = locker.icono_estado || meta.icon;
     icon.className = `fa-solid ${iconClass}`;
     icon.setAttribute("aria-hidden", "true");
     iconWrap.appendChild(icon);
 
-    card.appendChild(header);
+    card.appendChild(stateLabel);
+    card.appendChild(code);
     card.appendChild(assignee);
-    card.appendChild(metaLine);
     card.appendChild(iconWrap);
+
+    const labelParts = [locker.codigo || "--", meta.label];
+    if (locker.colaborador_nombre) labelParts.push(locker.colaborador_nombre);
+    card.setAttribute("aria-label", labelParts.join(" - "));
+    card.setAttribute("aria-pressed", locker.id === state.selectedId ? "true" : "false");
 
     return card;
   }
 
+  function renderColumns() {
+    if (!dom.columnsContainer) return;
+    const filtered = applyFilters(state.lockers);
+    const scrollPositions = getScrollPositions();
+    const statesToRender = STATE_ORDER;
+    const mapCountValue = filtered.filter((locker) =>
+      statesToRender.includes(normalizeEstado(locker.estado))
+    ).length;
+
+    if (dom.mapCount) {
+      dom.mapCount.textContent = `${mapCountValue} lockers`;
+    }
+
+    dom.columnsContainer.innerHTML = "";
+    dom.columnsContainer.setAttribute("aria-busy", state.loading ? "true" : "false");
+
+    if (state.loading) {
+      statesToRender.forEach((key) => {
+        dom.columnsContainer.appendChild(renderSkeletonColumn(key));
+      });
+      return;
+    }
+
+    const stateMap = buildStateMap(filtered);
+    statesToRender.forEach((estadoKey) => {
+      const items = stateMap.get(estadoKey) || [];
+      dom.columnsContainer.appendChild(renderStatusColumn(estadoKey, items));
+    });
+
+    restoreScrollPositions(scrollPositions);
+    setupVirtualScroll();
+  }
+  function renderSelected() {
+    const locker = getSelectedLocker();
+    const hasSelection = !!locker;
+    if (dom.panelTitle) dom.panelTitle.textContent = "Detalle del locker";
+    dom.selectedHint.textContent = hasSelection
+      ? "Edita la ficha o ejecuta una accion rapida."
+      : "Selecciona un locker del mapa.";
+
+    dom.assignBtn.disabled = !hasSelection;
+    dom.releaseBtn.disabled = !hasSelection;
+    dom.blockBtn.disabled = !hasSelection;
+    dom.nameInput.disabled = !hasSelection;
+    dom.dateInput.disabled = !hasSelection;
+    dom.groupSelect.disabled = !hasSelection;
+
+    setPanelOpen(hasSelection && !state.panelLocked);
+
+    if (!hasSelection) {
+      dom.selectedCode.textContent = "--";
+      dom.selectedGroup.textContent = "--";
+      dom.selectedAssignee.textContent = "--";
+      dom.selectedDate.textContent = "--";
+      dom.nameInput.value = "";
+      dom.dateInput.value = "";
+      dom.selectedStateBadge.style.setProperty("--state-color", "#9ca3af");
+      dom.selectedStateBadge.style.setProperty("--state-ink", "#ffffff");
+      dom.selectedStateLabel.textContent = "Sin seleccion";
+      dom.assignBtn.textContent = "Asignar";
+      dom.releaseBtn.textContent = "Liberar";
+      dom.blockBtn.textContent = "Bloquear";
+      dom.assignBtn.classList.remove("is-primary");
+      dom.releaseBtn.classList.remove("is-primary");
+      dom.blockBtn.classList.remove("is-primary");
+      return;
+    }
+
+    const meta = getStateMeta(locker.estado);
+    dom.selectedCode.textContent = locker.codigo || "--";
+    dom.selectedGroup.textContent = normalizeGrupo(locker.grupo);
+    dom.selectedAssignee.textContent = locker.colaborador_nombre || "--";
+    dom.selectedDate.textContent = formatDate(locker.fecha_asignacion);
+    dom.nameInput.value = locker.colaborador_nombre || "";
+    dom.dateInput.value = locker.fecha_asignacion || "";
+
+    dom.groupSelect.value = normalizeGrupo(locker.grupo);
+    dom.selectedStateBadge.style.setProperty("--state-color", locker.color_estado || meta.color);
+    dom.selectedStateBadge.style.setProperty("--state-ink", meta.text);
+    dom.selectedStateLabel.textContent = meta.label;
+
+    updateActionButtons(locker);
+  }
+
+  function updateActionButtons(locker) {
+    const estado = normalizeEstado(locker.estado);
+    let primary = "assign";
+
+    if (estado === "OCUPADO") primary = "release";
+    if (estado === "BLOQUEADO") primary = "block";
+    if (estado === "MANTENIMIENTO") primary = "release";
+
+    dom.assignBtn.classList.toggle("is-primary", primary === "assign");
+    dom.releaseBtn.classList.toggle("is-primary", primary === "release");
+    dom.blockBtn.classList.toggle("is-primary", primary === "block");
+
+    dom.assignBtn.textContent = estado === "SE_DESCONOCE" ? "Regularizar" : "Asignar";
+    dom.blockBtn.textContent = estado === "BLOQUEADO" ? "Desbloquear" : "Bloquear";
+  }
+
   function renderAll() {
     renderSummary();
-    renderGroups();
+    renderColumns();
     renderSelected();
     updateLegendActive();
   }
 
+  function markUpdated(id) {
+    if (!id) return;
+    state.updatedIds.add(id);
+    clearTimeout(state.updateTimers.get(id));
+    const timer = setTimeout(() => {
+      state.updatedIds.delete(id);
+      state.updateTimers.delete(id);
+      renderColumns();
+    }, 1500);
+    state.updateTimers.set(id, timer);
+  }
+
   async function updateLocker(id, payload, successMessage) {
+    const current = state.lockers.find((locker) => locker.id === id);
+    const currentState = current ? normalizeEstado(current.estado) : null;
+    const targetState = payload.estado ? normalizeEstado(payload.estado) : currentState;
+    state.loadingColumns = new Set([currentState, targetState].filter(Boolean));
+    renderColumns();
+
     const supabase = getSupabaseClient();
     if (!supabase) {
       setStatus("Supabase no esta disponible.", "error");
+      state.loadingColumns = new Set();
+      renderColumns();
       return null;
     }
     setStatus("Guardando cambios...", "info");
@@ -450,6 +705,8 @@
 
     if (error) {
       setStatus(`Error al guardar: ${error.message || error}`, "error");
+      state.loadingColumns = new Set();
+      renderColumns();
       return null;
     }
 
@@ -458,12 +715,13 @@
     else state.lockers.push(data);
 
     ensureGroupSelectOptions(state.lockers);
+    markUpdated(id);
+    state.loadingColumns = new Set();
     renderAll();
     setStatus(successMessage || "Locker actualizado.", "success");
     return data;
   }
-
-  async function handleSave() {
+  async function handleAssign() {
     const locker = getSelectedLocker();
     if (!locker) {
       setStatus("Selecciona un locker para continuar.", "warn");
@@ -471,29 +729,27 @@
     }
 
     const name = dom.nameInput.value.trim();
-    const date = dom.dateInput.value || (name ? new Date().toISOString().slice(0, 10) : "");
-    const group = dom.groupSelect.value || normalizeGrupo(locker.grupo);
-
-    if (!name && locker.colaborador_nombre && name !== locker.colaborador_nombre) {
-      setStatus("Para liberar un locker usa el boton Liberar locker.", "warn");
+    if (!name) {
+      setStatus("Ingresa un nombre para asignar.", "warn");
+      dom.nameInput.focus();
       return;
     }
 
+    const date = dom.dateInput.value || new Date().toISOString().slice(0, 10);
+    const group = dom.groupSelect.value || normalizeGrupo(locker.grupo);
+    const occupiedMeta = STATE_META.OCUPADO;
+
     const payload = {
       grupo: group,
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
+      colaborador_nombre: name,
+      fecha_asignacion: date || null,
+      estado: "OCUPADO",
+      color_estado: occupiedMeta.color,
+      icono_estado: occupiedMeta.icon
     };
 
-    if (name) {
-      const occupiedMeta = STATE_META.OCUPADO;
-      payload.colaborador_nombre = name;
-      payload.fecha_asignacion = date || null;
-      payload.estado = "OCUPADO";
-      payload.color_estado = occupiedMeta.color;
-      payload.icono_estado = occupiedMeta.icon;
-    }
-
-    await updateLocker(locker.id, payload, "Locker actualizado.");
+    await updateLocker(locker.id, payload, "Locker asignado.");
   }
 
   async function handleRelease() {
@@ -517,74 +773,344 @@
     await updateLocker(locker.id, payload, "Locker liberado.");
   }
 
-  async function handleLegendChange(estado) {
+  async function handleToggleBlock() {
     const locker = getSelectedLocker();
     if (!locker) {
-      setStatus("Selecciona un locker para aplicar estado.", "warn");
+      setStatus("Selecciona un locker para continuar.", "warn");
       return;
     }
 
-    const meta = STATE_META[estado] || STATE_META.LIBRE;
+    const estado = normalizeEstado(locker.estado);
+    if (estado === "BLOQUEADO") {
+      const target = locker.colaborador_nombre ? "OCUPADO" : "LIBRE";
+      const meta = STATE_META[target] || STATE_META.LIBRE;
+      const payload = {
+        estado: target,
+        color_estado: meta.color,
+        icono_estado: meta.icon,
+        grupo: dom.groupSelect.value || normalizeGrupo(locker.grupo),
+        updated_at: new Date().toISOString()
+      };
+      if (!locker.colaborador_nombre) {
+        payload.colaborador_nombre = null;
+        payload.fecha_asignacion = null;
+      }
+      await updateLocker(locker.id, payload, "Locker desbloqueado.");
+      return;
+    }
+
+    const blockedMeta = STATE_META.BLOQUEADO;
     const payload = {
-      estado,
-      color_estado: meta.color,
-      icono_estado: meta.icon,
+      estado: "BLOQUEADO",
+      color_estado: blockedMeta.color,
+      icono_estado: blockedMeta.icon,
+      grupo: dom.groupSelect.value || normalizeGrupo(locker.grupo),
       updated_at: new Date().toISOString()
     };
 
-    await updateLocker(locker.id, payload, "Estado actualizado.");
+    await updateLocker(locker.id, payload, "Locker bloqueado.");
   }
 
-  function handleCardClick(event) {
-    const card = event.target.closest(".locker-card");
-    if (!card) return;
-    state.selectedId = card.dataset.id;
+  function setPanelOpen(open) {
+    if (!dom.root) return;
+    dom.root.classList.toggle("panel-open", open);
+    dom.panel?.setAttribute("aria-hidden", open ? "false" : "true");
+    dom.panelBackdrop?.setAttribute("aria-hidden", open ? "false" : "true");
+  }
+
+  function handleLegendFilter(estado) {
+    if (!estado || estado === "ALL") {
+      state.filters.estado = "ALL";
+    } else {
+      state.filters.estado = state.filters.estado === estado ? "ALL" : estado;
+    }
     renderAll();
   }
 
-  function bindEvents() {
-    dom.searchInput.addEventListener("input", (event) => {
-      const value = event.target.value.trim().toLowerCase();
-      clearTimeout(searchTimer);
-      searchTimer = setTimeout(() => {
-        state.filters.search = value;
-        renderGroups();
-      }, 120);
-    });
-
-    dom.stateFilter.addEventListener("change", (event) => {
-      state.filters.estado = event.target.value;
-      renderGroups();
-    });
-
-    dom.groupFilter.addEventListener("change", (event) => {
-      state.filters.grupo = event.target.value;
-      renderGroups();
-    });
-
-    dom.showInactive.addEventListener("change", (event) => {
-      state.filters.showInactive = event.target.checked;
-      renderGroups();
-    });
-
-    dom.refreshBtn.addEventListener("click", () => loadLockers(true));
-    dom.saveBtn.addEventListener("click", handleSave);
-    dom.releaseBtn.addEventListener("click", handleRelease);
-
-    dom.legendGrid.addEventListener("click", (event) => {
-      const item = event.target.closest(".legend-item");
-      if (!item) return;
-      handleLegendChange(item.dataset.estado);
-    });
-
-    dom.groupsContainer.addEventListener("click", handleCardClick);
+  function handleColumnToggle(event) {
+    const toggle = event.target.closest(".column-toggle");
+    if (!toggle) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+    const estado = toggle.dataset.estado;
+    if (!estado) return;
+    state.collapsedStates[estado] = !state.collapsedStates[estado];
+    saveCollapseState();
+    renderColumns();
   }
 
+  function handleCardClick(event) {
+    if (state.suppressClick) {
+      state.suppressClick = false;
+      return;
+    }
+    const card = event.target.closest(".locker-card");
+    if (!card) return;
+    state.panelLocked = false;
+    state.selectedId = card.dataset.id;
+    closeQuickMenu();
+    renderAll();
+  }
+
+  function handlePointerDown(event) {
+    const card = event.target.closest(".locker-card");
+    if (!card) return;
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    clearTimeout(longPressTimer);
+    longPressTimer = setTimeout(() => {
+      state.suppressClick = true;
+      state.selectedId = card.dataset.id;
+      openQuickMenu(card.dataset.id, event);
+      renderColumns();
+    }, LONG_PRESS_MS);
+  }
+
+  function cancelLongPress() {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      longPressTimer = null;
+    }
+  }
+
+  function handlePointerUp() {
+    cancelLongPress();
+  }
+
+  function handleCardKeydown(event) {
+    const keys = ["ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight"];
+    if (!keys.includes(event.key)) return;
+    const card = event.target.closest(".locker-card");
+    if (!card) return;
+
+    const column = card.closest(".status-column");
+    if (!column) return;
+
+    const columns = Array.from(dom.columnsContainer.querySelectorAll(".status-column"));
+    const columnIndex = columns.indexOf(column);
+    const cards = Array.from(column.querySelectorAll(".locker-card"));
+    const index = cards.indexOf(card);
+
+    let target = null;
+    if (event.key === "ArrowDown") target = cards[index + 1] || cards[index];
+    if (event.key === "ArrowUp") target = cards[index - 1] || cards[index];
+    if (event.key === "ArrowRight") {
+      const nextColumn = columns[columnIndex + 1];
+      if (nextColumn) {
+        const nextCards = Array.from(nextColumn.querySelectorAll(".locker-card"));
+        target = nextCards[Math.min(index, nextCards.length - 1)] || nextCards[0];
+      }
+    }
+    if (event.key === "ArrowLeft") {
+      const prevColumn = columns[columnIndex - 1];
+      if (prevColumn) {
+        const prevCards = Array.from(prevColumn.querySelectorAll(".locker-card"));
+        target = prevCards[Math.min(index, prevCards.length - 1)] || prevCards[0];
+      }
+    }
+
+    if (target) {
+      event.preventDefault();
+      target.focus();
+    }
+  }
+
+  function openQuickMenu(id, event) {
+    if (!dom.quickMenu) return;
+    state.quickMenu.open = true;
+    state.quickMenu.lockerId = id;
+    state.panelLocked = true;
+    setPanelOpen(false);
+
+    const locker = getSelectedLocker();
+    if (locker) {
+      const estado = normalizeEstado(locker.estado);
+      dom.quickAssign.textContent = estado === "SE_DESCONOCE" ? "Regularizar" : "Asignar";
+      dom.quickBlock.textContent = estado === "BLOQUEADO" ? "Desbloquear" : "Bloquear";
+    }
+
+    const x = event?.clientX || window.innerWidth / 2;
+    const y = event?.clientY || window.innerHeight / 2;
+    dom.quickMenu.style.setProperty("--menu-x", `${x}px`);
+    dom.quickMenu.style.setProperty("--menu-y", `${y}px`);
+    dom.quickMenu.classList.add("is-open");
+    dom.quickMenu.setAttribute("aria-hidden", "false");
+  }
+
+  function closeQuickMenu() {
+    if (!dom.quickMenu) return;
+    state.quickMenu.open = false;
+    dom.quickMenu.classList.remove("is-open");
+    dom.quickMenu.setAttribute("aria-hidden", "true");
+  }
+
+  function handleQuickAssign() {
+    closeQuickMenu();
+    state.panelLocked = false;
+    renderSelected();
+    dom.nameInput?.focus();
+  }
+
+  function handleQuickRelease() {
+    closeQuickMenu();
+    state.panelLocked = false;
+    handleRelease();
+  }
+
+  function handleQuickBlock() {
+    closeQuickMenu();
+    state.panelLocked = false;
+    handleToggleBlock();
+  }
+
+  function handlePanelClose() {
+    state.selectedId = null;
+    state.panelLocked = false;
+    renderAll();
+  }
+
+  function handleSearchInput(event) {
+    const value = event.target.value.trim();
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+      state.filters.search = value;
+      renderAll();
+    }, 150);
+  }
+
+  function getVisibleLockersByState(estado) {
+    const filtered = applyFilters(state.lockers);
+    const sameState = filtered.filter((locker) => normalizeEstado(locker.estado) === estado);
+    return sortLockers(sameState);
+  }
+
+  function selectAdjacentInState(direction) {
+    const locker = getSelectedLocker();
+    if (!locker) return;
+    const estado = normalizeEstado(locker.estado);
+    const list = getVisibleLockersByState(estado);
+    const index = list.findIndex((item) => item.id === locker.id);
+    if (index === -1) return;
+    const next = list[index + direction];
+    if (!next) return;
+    state.selectedId = next.id;
+    renderAll();
+  }
+
+  function handlePanelTouchStart(event) {
+    if (event.target.closest("input, select, textarea, button")) return;
+    const touch = event.touches[0];
+    if (!touch) return;
+    state.touchStart = {
+      x: touch.clientX,
+      y: touch.clientY
+    };
+  }
+
+  function handlePanelTouchEnd(event) {
+    if (!state.touchStart) return;
+    if (!dom.root?.classList.contains("panel-open")) {
+      state.touchStart = null;
+      return;
+    }
+    const touch = event.changedTouches[0];
+    if (!touch) return;
+    const deltaX = touch.clientX - state.touchStart.x;
+    const deltaY = touch.clientY - state.touchStart.y;
+    state.touchStart = null;
+
+    if (Math.abs(deltaY) > 60 && Math.abs(deltaY) > Math.abs(deltaX)) {
+      const cardScrollTop = dom.panelCard ? dom.panelCard.scrollTop : 0;
+      if (deltaY > 0 && cardScrollTop <= 0) handlePanelClose();
+      return;
+    }
+
+    if (Math.abs(deltaX) > 60 && Math.abs(deltaX) > Math.abs(deltaY)) {
+      if (deltaX < 0) selectAdjacentInState(1);
+      if (deltaX > 0) selectAdjacentInState(-1);
+    }
+  }
+  function setupVirtualScroll() {
+    if (!state.virtualization.enabled) return;
+    const scrolls = dom.columnsContainer.querySelectorAll(".status-scroll");
+    scrolls.forEach((scroll) => {
+      scroll.addEventListener(
+        "scroll",
+        (event) => {
+          const column = event.currentTarget.closest(".status-column");
+          if (!column) return;
+          const estado = column.dataset.estado;
+          const total = Number(column.dataset.total || "0");
+          const limit = state.virtualization.limits[estado] || VIRTUAL_LIMIT;
+          if (limit >= total) return;
+          if (
+            event.currentTarget.scrollTop + event.currentTarget.clientHeight <
+            event.currentTarget.scrollHeight - 24
+          ) {
+            return;
+          }
+          state.virtualization.limits[estado] = limit + VIRTUAL_STEP;
+          renderColumns();
+        },
+        { passive: true }
+      );
+    });
+  }
+
+  function bindEvents() {
+    dom.searchInput.addEventListener("input", handleSearchInput);
+    dom.assignBtn.addEventListener("click", handleAssign);
+    dom.releaseBtn.addEventListener("click", handleRelease);
+    dom.blockBtn.addEventListener("click", handleToggleBlock);
+    dom.panelClose.addEventListener("click", handlePanelClose);
+    dom.panelBackdrop.addEventListener("click", handlePanelClose);
+    dom.panelCard?.addEventListener("touchstart", handlePanelTouchStart, { passive: true });
+    dom.panelCard?.addEventListener("touchend", handlePanelTouchEnd, { passive: true });
+    dom.panelCard?.addEventListener("touchcancel", handlePanelTouchEnd, { passive: true });
+
+    dom.columnsContainer.addEventListener("click", handleColumnToggle);
+    dom.columnsContainer.addEventListener("click", handleCardClick);
+    dom.columnsContainer.addEventListener("keydown", handleCardKeydown);
+    dom.columnsContainer.addEventListener("pointerdown", handlePointerDown);
+    dom.columnsContainer.addEventListener("pointerup", handlePointerUp);
+    dom.columnsContainer.addEventListener("pointercancel", handlePointerUp);
+    dom.columnsContainer.addEventListener("pointerleave", handlePointerUp);
+
+    dom.legendContainer?.addEventListener("click", (event) => {
+      const chip = event.target.closest(".hero-chip[data-estado]");
+      if (!chip) return;
+      handleLegendFilter(chip.dataset.estado);
+    });
+
+    dom.quickAssign.addEventListener("click", handleQuickAssign);
+    dom.quickRelease.addEventListener("click", handleQuickRelease);
+    dom.quickBlock.addEventListener("click", handleQuickBlock);
+
+    document.addEventListener("click", (event) => {
+      if (state.quickMenu.open && dom.quickMenu && !dom.quickMenu.contains(event.target)) {
+        closeQuickMenu();
+        state.panelLocked = false;
+      }
+    });
+
+    window.addEventListener("scroll", handleHeaderScroll, { passive: true });
+  }
   async function loadLockers(force = false) {
     setStatus("Cargando lockers...", "info");
+    state.loading = true;
+    state.loadingColumns = new Set();
+    renderColumns();
+
     const supabase = await waitForSupabase();
     if (!supabase) {
-      setStatus("Supabase no disponible. Revisa config.js.", "error");
+      state.lockers = [];
+      state.loading = false;
+      unsubscribeRealtime();
+      ensureGroupSelectOptions(state.lockers);
+      resetVirtualization();
+      state.selectedId = null;
+      renderAll();
+      setStatus("Supabase no disponible. Sin datos.", "warn");
       return;
     }
 
@@ -594,23 +1120,39 @@
       .order("codigo", { ascending: true });
 
     if (error) {
-      setStatus(`Error al cargar lockers: ${error.message || error}`, "error");
+      console.error(error);
+      state.lockers = [];
+      state.loading = false;
+      unsubscribeRealtime();
+      ensureGroupSelectOptions(state.lockers);
+      resetVirtualization();
+      state.selectedId = null;
+      renderAll();
+      setStatus("No se pudo cargar lockers.", "warn");
       return;
     }
 
-    state.lockers = Array.isArray(data) ? data : [];
-    ensureGroupSelectOptions(state.lockers);
-    renderAll();
-
-    if (!state.channel || force) {
-      subscribeToRealtime(supabase);
-    }
-
-    if (!state.lockers.length) {
-      setStatus("Sin lockers en la base. Verifica datos o filtros.", "warn");
+    const list = Array.isArray(data) ? data : [];
+    if (!list.length) {
+      state.lockers = [];
+      state.loading = false;
+      unsubscribeRealtime();
+      setStatus("Sin lockers en la base.", "warn");
     } else {
+      state.lockers = list;
+      state.loading = false;
+      if (!state.channel || force) {
+        subscribeToRealtime(supabase);
+      }
       setStatus("Datos actualizados.", "success");
     }
+
+    ensureGroupSelectOptions(state.lockers);
+    resetVirtualization();
+    if (!state.lockers.find((locker) => locker.id === state.selectedId)) {
+      state.selectedId = null;
+    }
+    renderAll();
   }
 
   function applyRealtimePayload(payload) {
@@ -621,11 +1163,13 @@
 
     if (eventType === "INSERT" && newRow) {
       state.lockers.push(newRow);
+      markUpdated(newRow.id);
     }
     if (eventType === "UPDATE" && newRow) {
       const index = state.lockers.findIndex((locker) => locker.id === newRow.id);
       if (index >= 0) state.lockers[index] = newRow;
       else state.lockers.push(newRow);
+      markUpdated(newRow.id);
     }
     if (eventType === "DELETE" && oldRow) {
       state.lockers = state.lockers.filter((locker) => locker.id !== oldRow.id);
@@ -633,17 +1177,22 @@
     }
 
     ensureGroupSelectOptions(state.lockers);
+    resetVirtualization();
     renderAll();
   }
 
-  function subscribeToRealtime(supabase) {
-    if (state.channel) {
-      try {
-        state.channel.unsubscribe();
-      } catch (err) {
-        // ignore
-      }
+  function unsubscribeRealtime() {
+    if (!state.channel) return;
+    try {
+      state.channel.unsubscribe();
+    } catch (err) {
+      // ignore
     }
+    state.channel = null;
+  }
+
+  function subscribeToRealtime(supabase) {
+    unsubscribeRealtime();
 
     state.channel = supabase
       .channel("lockers-realtime")
@@ -661,43 +1210,46 @@
 
   function teardown() {
     state.active = false;
-    if (state.channel) {
-      try {
-        state.channel.unsubscribe();
-      } catch (err) {
-        // ignore
-      }
-    }
-    state.channel = null;
+    unsubscribeRealtime();
   }
 
   function cacheDom(root) {
     dom = {
       root,
       searchInput: root.querySelector("#lockerSearch"),
-      stateFilter: root.querySelector("#lockerStateFilter"),
-      groupFilter: root.querySelector("#lockerGroupFilter"),
-      showInactive: root.querySelector("#lockerShowInactive"),
-      refreshBtn: root.querySelector("#lockerRefresh"),
-      legendGrid: root.querySelector("#legendGrid"),
-      summaryGrid: root.querySelector("#summaryGrid"),
-      groupsContainer: root.querySelector("#lockerGroups"),
-      status: root.querySelector("#lockersStatus"),
+      mapCount: root.querySelector("#lockerMapCount"),
+      columnsContainer: root.querySelector("#lockerStatusColumns"),
       selectedHint: root.querySelector("#lockerSelectedHint"),
       selectedCode: root.querySelector("#lockerSelectedCode"),
       selectedGroup: root.querySelector("#lockerSelectedGroup"),
-      selectedState: root.querySelector("#lockerSelectedState"),
-      selectedUpdated: root.querySelector("#lockerSelectedUpdated"),
+      selectedAssignee: root.querySelector("#lockerSelectedAssignee"),
+      selectedDate: root.querySelector("#lockerSelectedDate"),
       selectedStateBadge: root.querySelector("#lockerSelectedStateBadge"),
       selectedStateLabel: root.querySelector("#lockerSelectedStateLabel"),
       nameInput: root.querySelector("#lockerName"),
       dateInput: root.querySelector("#lockerDate"),
       groupSelect: root.querySelector("#lockerGroup"),
-      saveBtn: root.querySelector("#lockerSaveBtn"),
+      assignBtn: root.querySelector("#lockerAssignBtn"),
       releaseBtn: root.querySelector("#lockerReleaseBtn"),
+      blockBtn: root.querySelector("#lockerBlockBtn"),
       totalCount: root.querySelector("#lockerTotalCount"),
       assignedCount: root.querySelector("#lockerAssignedCount"),
-      freeCount: root.querySelector("#lockerFreeCount")
+      freeCount: root.querySelector("#lockerFreeCount"),
+      unknownCount: root.querySelector("#lockerUnknownCount"),
+      maintenanceCount: root.querySelector("#lockerMaintenanceCount"),
+      blockedCount: root.querySelector("#lockerBlockedCount"),
+      legendContainer: root.querySelector(".hero-meta"),
+      legendChips: Array.from(root.querySelectorAll(".hero-chip[data-estado]")),
+      panel: root.querySelector("#lockerDetailPanel"),
+      panelCard: root.querySelector(".panel-card"),
+      panelTitle: root.querySelector("#lockerPanelTitle"),
+      panelClose: root.querySelector("#lockerPanelClose"),
+      panelBackdrop: root.querySelector("#lockerPanelBackdrop"),
+      toast: root.querySelector("#lockerToast"),
+      quickMenu: root.querySelector("#lockerQuickMenu"),
+      quickAssign: root.querySelector("#lockerQuickAssign"),
+      quickRelease: root.querySelector("#lockerQuickRelease"),
+      quickBlock: root.querySelector("#lockerQuickBlock")
     };
   }
 
@@ -712,11 +1264,12 @@
     state.active = true;
 
     cacheDom(root);
-    renderLegend();
+    state.collapsedStates = readCollapseState();
     renderSummary();
-    renderGroups();
+    renderColumns();
     renderSelected();
     bindEvents();
+    handleHeaderScroll();
     loadLockers();
   }
 
