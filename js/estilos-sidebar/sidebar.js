@@ -18,12 +18,25 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
   // -------------------------
   // opciones y defaults
   // -------------------------
-  const htmlPath = options.htmlPath ?? '../../html/base/sidebar.html';
+  function getAppRootPath() {
+    const path = window.location.pathname;
+    const htmlIndex = path.indexOf('/html/');
+    if (htmlIndex !== -1) return path.slice(0, htmlIndex + 1);
+    if (path.endsWith('/')) return path;
+    return path.slice(0, path.lastIndexOf('/') + 1);
+  }
+
+  function resolveFromRoot(relativePath) {
+    const base = new URL(getAppRootPath(), window.location.href);
+    return new URL(relativePath.replace(/^\//, ''), base).href;
+  }
+
+  const htmlPath = options.htmlPath ?? resolveFromRoot('html/base/sidebar.html');
   const createIfMissing = options.createIfMissing ?? true;
   const toggleSelector = options.toggleSelector ?? '#sidebarToggle';
   const collapseSelector = options.collapseSelector ?? '#collapseBtn';
   const mainSelectorPriority = options.mainSelector ?? null; // si se pasa, se respeta tal cual
-  const extractSelector = options.extractSelector ?? 'main'; // selector para extraer contenido del HTML cargado
+  const extractSelector = options.extractSelector ?? 'main, #dashboardContent, .dashboard-content, .wrap, .login-container, #main-content'; // selector para extraer contenido del HTML cargado
   const enableRouting = options.enableRouting ?? true; // controla comportamiento SPA parcial
   const DESKTOP_BREAK = options.desktopBreakpoint ?? 1024;
 
@@ -90,6 +103,17 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
   // ReferenceError cuando adjustContentMargin se llame temprano.
   let mainContainer = null;
   let contentWrapper = null;
+    const mainSelectors = (mainSelectorPriority ?? '#app-view, main, #dashboardContent, .dashboard-content, .wrap, #main-content')
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean);
+    for (const sel of mainSelectors) {
+      const el = document.querySelector(sel);
+      if (el) {
+        mainContainer = el;
+        break;
+      }
+    }
     if (toggleBtn) {
       const onToggle = (e) => {
         e.stopPropagation();
@@ -122,6 +146,23 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
         return new URL(url, base).href;
       } catch (err) {
         return url;
+      }
+    }
+    function resolveAssetUrl(base, url) {
+      if (!url) return url;
+      if (/^(https?:|mailto:|tel:|data:|blob:|javascript:)/i.test(url)) return url;
+      if (url.startsWith('#') || url.startsWith('//')) return url;
+      if (url.startsWith('/')) {
+        const rootBase = new URL(getAppRootPath(), window.location.href);
+        return new URL(url.replace(/^\//, ''), rootBase).href;
+      }
+      return resolveUrl(base, url);
+    }
+    function normalizeHrefValue(raw) {
+      try {
+        return new URL(raw, window.location.href).pathname;
+      } catch (err) {
+        return raw;
       }
     }
     function isDesktop() {
@@ -588,15 +629,16 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
     // -------------------------
     function setActiveByHref(href) {
       if (!href) return;
-      const normalized = href.split('#')[0].split('?')[0];
+      const normalized = normalizeHrefValue(href);
       // limpiar todos
       const lis = sidebar.querySelectorAll('.menu > li');
       lis.forEach(li => li.classList.remove('active-link'));
       const anchors = sidebar.querySelectorAll('.menu a[href]');
       for (const a of anchors) {
         const aHref = a.getAttribute('href') || '';
-        const normalizedA = aHref.split('#')[0].split('?')[0];
-        if (normalizedA === normalized || aHref === normalized || (a.href && a.href.endsWith(normalized))) {
+        const normalizedA = normalizeHrefValue(aHref);
+        const normalizedAbs = a.href ? normalizeHrefValue(a.href) : '';
+        if (normalizedA === normalized || normalizedAbs === normalized || normalizedAbs.endsWith(normalized)) {
           const li = a.closest('li');
           if (li) {
             li.classList.add('active-link');
@@ -621,6 +663,30 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
     // - ejecuta scripts inline y externos (espera a onload de externos)
     // - despacha DOMContentLoaded sintético y evento partial:loaded
     // -------------------------
+    function rewriteRelativeUrls(rootEl, baseForResolve) {
+      if (!rootEl) return;
+      const nodes = rootEl.querySelectorAll('[href], [src]');
+      nodes.forEach((node) => {
+        if (node.hasAttribute('href')) {
+          const raw = node.getAttribute('href');
+          const next = resolveAssetUrl(baseForResolve, raw);
+          if (next && next !== raw) node.setAttribute('href', next);
+        }
+        if (node.hasAttribute('src')) {
+          const raw = node.getAttribute('src');
+          const next = resolveAssetUrl(baseForResolve, raw);
+          if (next && next !== raw) node.setAttribute('src', next);
+        }
+      });
+    }
+
+    function applyViewState(href) {
+      const normalized = normalizeHrefValue(href);
+      const viewName = normalized.split('/').pop()?.replace(/\.html$/i, '') || 'view';
+      document.body.dataset.view = viewName;
+      document.body.classList.toggle('view-login', normalized.includes('/login-general/'));
+    }
+
     async function loadPartial(href, pushHistory = true) {
       if (!mainContainer) {
         console.warn('sidebar.js: no hay mainContainer para inyectar contenido.');
@@ -645,26 +711,46 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
         if (newTitle) document.title = newTitle;
 
         const extracted = doc.querySelector(extractSelector) ?? doc.querySelector('main') ?? doc.body;
-        mainContainer.innerHTML = extracted.innerHTML;
+        const extractedClone = extracted.cloneNode(true);
+        extractedClone.querySelectorAll('script').forEach(s => s.remove());
+        extractedClone.querySelectorAll('link[rel="stylesheet"]').forEach(l => l.remove());
+        rewriteRelativeUrls(extractedClone, baseForResolve);
+        mainContainer.innerHTML = '';
+        if (extractedClone.tagName && extractedClone.tagName.toLowerCase() === 'body') {
+          Array.from(extractedClone.children).forEach(child => mainContainer.appendChild(child));
+        } else {
+          mainContainer.appendChild(extractedClone);
+        }
 
-        // scripts dentro del extracted
-        const inlineAndExternalScripts = Array.from(extracted.querySelectorAll('script'));
-        // scripts en head (src)
-        const headScripts = Array.from(doc.querySelectorAll('script[src]')).map(s => s.getAttribute('src')).filter(Boolean);
+        // estilos del head/body
+        const styleLinks = Array.from(doc.querySelectorAll('link[rel="stylesheet"][href]'));
+        const existingStyleLinks = Array.from(document.querySelectorAll('link[rel="stylesheet"]'));
+        styleLinks.forEach((l) => {
+          const raw = l.getAttribute('href');
+          const hrefResolved = resolveAssetUrl(baseForResolve, raw);
+          if (!hrefResolved) return;
+          const already = existingStyleLinks.some((link) => link.href === hrefResolved || link.getAttribute('href') === hrefResolved);
+          if (already) return;
+          const link = document.createElement('link');
+          link.rel = 'stylesheet';
+          link.href = hrefResolved;
+          document.head.appendChild(link);
+        });
+
+        // scripts del documento
+        const docScripts = Array.from(doc.querySelectorAll('script'));
 
         const externalPromises = [];
 
-        // ejecutar scripts dentro del extracted
-        for (const s of inlineAndExternalScripts) {
+        for (const s of docScripts) {
           const srcRaw = s.getAttribute('src');
           const type = s.getAttribute('type') || s.type || '';
-          // Skip sidebar-related scripts to avoid re-initialization
           const skipScript = (src) => {
             if (!src) return false;
             return /estilos-sidebar|sidebar(-loader)?\.js/.test(src);
           };
           if (srcRaw) {
-            const src = resolveUrl(baseForResolve, srcRaw);
+            const src = resolveAssetUrl(baseForResolve, srcRaw);
             if (skipScript(src)) {
               console.debug('sidebar.js: skipping sidebar-related script during partial load', src);
               continue;
@@ -684,7 +770,6 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
               document.body.appendChild(sc);
             }
           } else {
-            // Inline script: skip if it appears to re-run sidebar init
             const inlineText = s.textContent || '';
             if (/initSidebar\(|sidebar-loader\.js|estilos-sidebar/.test(inlineText)) {
               console.debug('sidebar.js: skipping inline script that may re-init sidebar');
@@ -693,28 +778,6 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
             const sc = document.createElement('script');
             if (type) sc.type = type;
             sc.textContent = inlineText;
-            document.body.appendChild(sc);
-          }
-        }
-
-        // cargar scripts del head (skip sidebar-related)
-        for (const srcRaw of headScripts) {
-          const src = resolveUrl(baseForResolve, srcRaw);
-          if (/estilos-sidebar|sidebar(-loader)?\.js/.test(src)) {
-            console.debug('sidebar.js: skipping head script (sidebar-related) during partial load', src);
-            continue;
-          }
-          if (!document.querySelector(`script[src="${src}"]`)) {
-            const sc = document.createElement('script');
-            sc.src = src;
-            const p = new Promise((resolve) => {
-              sc.addEventListener('load', () => resolve(src));
-              sc.addEventListener('error', () => {
-                console.warn('sidebar.js: error cargando head script', src);
-                resolve(src);
-              });
-            });
-            externalPromises.push(p);
             document.body.appendChild(sc);
           }
         }
@@ -738,6 +801,7 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
 
         // marcar activo
         setActiveByHref(href);
+        applyViewState(href);
 
         if (pushHistory) {
           try { history.pushState({ partial: true, href }, '', href); } catch (err) { /* ignore */ }
@@ -894,6 +958,7 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
 
     adjustContentMargin();
     setActiveByHref(window.location.pathname);
+    applyViewState(window.location.pathname);
     // -------------------------
     // ejemplo: verificar rol desde supabase si supabase está disponible
     // -------------------------
@@ -924,6 +989,16 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
 
     // Llamar a la función de verificación de rol
     checkUserRoleFromDb();
+
+    try {
+      window.__sidebar = window.__sidebar || {};
+      window.__sidebar.loadPartial = loadPartial;
+      window.__sidebar.setActiveByHref = setActiveByHref;
+      window.__sidebar.adjustContentMargin = adjustContentMargin;
+      document.dispatchEvent(new CustomEvent('sidebar:ready', { detail: window.__sidebar }));
+    } catch (err) {
+      console.warn('sidebar.js: no se pudo exponer API de SPA', err);
+    }
   })();
 }
 
