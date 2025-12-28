@@ -146,8 +146,8 @@ async function registerServiceWorker() {
     if (typeof initSidebar === 'function') {
       await initSidebar('#sidebar-container', {
         htmlPath: SIDEBAR_HTML_PATH,
-        mainSelector: '#app-view, main, #dashboardContent, .dashboard-content, .wrap, #main-content',
-        extractSelector: 'main, #dashboardContent, .dashboard-content, .wrap, .login-container, #main-content'
+        mainSelector: '#app-view, #penalidades-root, main, #dashboardContent, .dashboard-content, .wrap, #main-content',
+        extractSelector: '#penalidades-root, main, #dashboardContent, .dashboard-content, .wrap, .login-container, #main-content'
       });
       console.info('✅ sidebar-loader: Sidebar inicializado correctamente.');
     } else {

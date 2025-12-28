@@ -36,7 +36,7 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
   const toggleSelector = options.toggleSelector ?? '#sidebarToggle';
   const collapseSelector = options.collapseSelector ?? '#collapseBtn';
   const mainSelectorPriority = options.mainSelector ?? null; // si se pasa, se respeta tal cual
-  const extractSelector = options.extractSelector ?? 'main, #dashboardContent, .dashboard-content, .wrap, .login-container, #main-content'; // selector para extraer contenido del HTML cargado
+  const extractSelector = options.extractSelector ?? '#penalidades-root, main, #dashboardContent, .dashboard-content, .wrap, .login-container, #main-content'; // selector para extraer contenido del HTML cargado
   const enableRouting = options.enableRouting ?? true; // controla comportamiento SPA parcial
   const DESKTOP_BREAK = options.desktopBreakpoint ?? 1024;
 
@@ -105,7 +105,7 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
   // ReferenceError cuando adjustContentMargin se llame temprano.
   let mainContainer = null;
   let contentWrapper = null;
-    const mainSelectors = (mainSelectorPriority ?? '#app-view, main, #dashboardContent, .dashboard-content, .wrap, #main-content')
+  const mainSelectors = (mainSelectorPriority ?? '#app-view, #penalidades-root, main, #dashboardContent, .dashboard-content, .wrap, #main-content')
       .split(',')
       .map(s => s.trim())
       .filter(Boolean);

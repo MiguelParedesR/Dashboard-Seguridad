@@ -40,6 +40,8 @@ const SUPABASE_TABLES = [
 ];
 
 let TABLES_AVAILABLE = null;
+let TABLES_UNREACHABLE = false;
+const PENALIDADES_STATE = window.__PENALIDADES_STATE || (window.__PENALIDADES_STATE = { unreachable: false });
 
 function getSupabaseConfig() {
     const dbKey = window.CONFIG?.SUPABASE?.resolveDbKeyForModule?.(MODULE_KEY) || 'PENALIDADES';
@@ -49,6 +51,22 @@ function getSupabaseConfig() {
 
 async function fetchSupabaseTables() {
     if (TABLES_AVAILABLE) return TABLES_AVAILABLE;
+    if (TABLES_UNREACHABLE || PENALIDADES_STATE.unreachable) return null;
+    const listTables = window.CONFIG?.SUPABASE?.listTables;
+    if (typeof listTables === 'function') {
+        const dbKey = window.CONFIG?.SUPABASE?.resolveDbKeyForModule?.(MODULE_KEY) || 'PENALIDADES';
+        const tablesSet = await listTables(dbKey);
+        if (!tablesSet) {
+            TABLES_UNREACHABLE = true;
+            PENALIDADES_STATE.unreachable = true;
+            return null;
+        }
+        TABLES_AVAILABLE = SUPABASE_TABLES.reduce((acc, name) => {
+            acc[name] = tablesSet.has(name);
+            return acc;
+        }, {});
+        return TABLES_AVAILABLE;
+    }
     const { url, key } = getSupabaseConfig();
     if (!url || !key) return null;
 
@@ -59,7 +77,11 @@ async function fetchSupabaseTables() {
                 Accept: 'application/openapi+json'
             }
         });
-        if (!resp.ok) return null;
+        if (!resp.ok) {
+            TABLES_UNREACHABLE = true;
+            PENALIDADES_STATE.unreachable = true;
+            return null;
+        }
         const spec = await resp.json();
         const paths = Object.keys(spec.paths || {});
         const set = new Set(
@@ -74,11 +96,13 @@ async function fetchSupabaseTables() {
         return TABLES_AVAILABLE;
     } catch (err) {
         console.warn('penalidades: no se pudo leer el esquema de Supabase', err);
+        TABLES_UNREACHABLE = true;
+        PENALIDADES_STATE.unreachable = true;
         return null;
     }
 }
 
-function disablePenalidadesUI(missing) {
+function disablePenalidadesUI(missing, reason) {
     const form = $('formPenalidad');
     if (form) {
         form.querySelectorAll('input, select, textarea, button').forEach(el => {
@@ -95,19 +119,30 @@ function disablePenalidadesUI(missing) {
 
     const empty = $('emptyState');
     if (empty) {
-        const list = (missing || []).join(', ');
-        empty.textContent = list
-            ? `No se puede cargar Penalidades. Faltan tablas en Supabase: ${list}.`
-            : 'No se puede cargar Penalidades.';
+        if (reason) {
+            empty.textContent = reason;
+        } else {
+            const list = (missing || []).join(', ');
+            empty.textContent = list
+                ? `No se puede cargar Penalidades. Faltan tablas en Supabase: ${list}.`
+                : 'No se puede cargar Penalidades.';
+        }
         empty.classList.remove('hidden');
     }
 
-    notify('warn', 'Base de datos incompleta', 'Faltan tablas en Supabase. Revisa la configuracion del proyecto.');
+    if (reason) {
+        notify('warn', 'Supabase no disponible', reason);
+    } else {
+        notify('warn', 'Base de datos incompleta', 'Faltan tablas en Supabase. Revisa la configuracion del proyecto.');
+    }
 }
 
 async function ensurePenalidadesBackend() {
     const tables = await fetchSupabaseTables();
-    if (!tables) return true;
+    if (!tables) {
+        disablePenalidadesUI(null, 'No se pudo conectar a Supabase. Revisa la URL o tu conexion.');
+        return false;
+    }
     const required = ['penalidades_aplicadas'];
     const missing = required.filter(name => !tables[name]);
     if (missing.length) {
@@ -151,6 +186,13 @@ function bringToFront(el, z = 10000) {
 --------------------------------------------------------------------- */
 
 async function initPenalidades() {
+    if (!$('formPenalidad') || !$('tablaPenalidades')) {
+        return;
+    }
+    if (PENALIDADES_STATE.unreachable) {
+        disablePenalidadesUI(null, 'No se pudo conectar a Supabase. Revisa la URL o tu conexion.');
+        return;
+    }
     const dbKey = window.CONFIG?.SUPABASE?.resolveDbKeyForModule?.(MODULE_KEY) || 'PENALIDADES';
     const waiter = window.CONFIG?.SUPABASE?.waitForClient;
     supabase = typeof waiter === 'function' ? await waiter(dbKey) : null;
@@ -262,6 +304,7 @@ function buildOrEq(field, values) {
 
 async function cargarEmpresas() {
     const tables = TABLES_AVAILABLE || await fetchSupabaseTables();
+    if (!tables) return;
     if (tables && !tables.empresas) {
         const list = Object.keys(EMPRESA_SYNONYMS);
         const opts = list.map(name => `<option value="${name}">${name}</option>`).join('');
@@ -285,6 +328,7 @@ async function cargarAgentes(empresaId) {
     if (!empresaId) { return; }
     if (AGENTS_CACHE.has(empresaId)) return; // ya cacheado
     const tables = TABLES_AVAILABLE || await fetchSupabaseTables();
+    if (!tables) return;
     if (tables && !tables.agentes_seguridad) return;
 
     // 1) intento por empresa_id (el ideal)
@@ -323,6 +367,7 @@ async function cargarAgentes(empresaId) {
 
 async function cargarPenalidades() {
     const tables = TABLES_AVAILABLE || await fetchSupabaseTables();
+    if (!tables) return;
     if (tables && !tables.penalidades_catalogo) {
         const sel = $('penalidad');
         if (sel) {
@@ -349,6 +394,7 @@ async function cargarPenalidades() {
 
 async function obtenerUIT() {
     const tables = TABLES_AVAILABLE || await fetchSupabaseTables();
+    if (!tables) return null;
     if (tables && !tables.v_uit_actual) return null;
     const { data, error } = await supabase.from('v_uit_actual').select('valor').single();
     if (error || !data) return null;
@@ -547,6 +593,7 @@ function buildListadoSelect() {
 
 async function listar() {
     const tables = TABLES_AVAILABLE || await fetchSupabaseTables();
+    if (!tables) return;
     if (tables && !tables.penalidades_aplicadas) {
         disablePenalidadesUI(['penalidades_aplicadas']);
         return;
@@ -781,6 +828,7 @@ function renderPreviews(fileList, container) {
 
 async function subirEvidencias(penalidadAplicadaId) {
     const tables = TABLES_AVAILABLE || await fetchSupabaseTables();
+    if (!tables) return;
     if (tables && !tables.penalidades_evidencias) return;
     const files = $('evidencias').files;
     if (!files || files.length === 0) return;
@@ -807,6 +855,10 @@ async function onSubmit(e) {
 
     try {
         const tables = TABLES_AVAILABLE || await fetchSupabaseTables();
+        if (!tables) {
+            notify('warn', 'Supabase no disponible', 'No se pudo conectar a la base de datos.');
+            return;
+        }
         if (tables && !tables.penalidades_aplicadas) {
             notify('error', 'Error', 'La tabla penalidades_aplicadas no esta disponible.');
             return;
@@ -956,6 +1008,10 @@ async function onConfirmDelete() {
 
 async function openGallery(penalidadId) {
     const tables = TABLES_AVAILABLE || await fetchSupabaseTables();
+    if (!tables) {
+        notify('warn', 'Supabase no disponible', 'No se pudo conectar a la base de datos.');
+        return;
+    }
     if (tables && !tables.penalidades_evidencias) {
         notify('warn', 'Evidencias', 'La tabla de evidencias no esta disponible.');
         return;
