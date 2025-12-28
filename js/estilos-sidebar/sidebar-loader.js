@@ -22,6 +22,33 @@ const FA_HREF = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/a
 const SIDEBAR_HTML_PATH = resolveFromRoot('html/base/sidebar.html');
 const SIDEBAR_MODULE = resolveFromRoot('js/estilos-sidebar/sidebar.js');
 
+const EXTERNAL_PROTOCOL_RE = /^(https?:|mailto:|tel:|data:|blob:|javascript:)/i;
+
+function resolveSidebarHref(rawHref) {
+  if (!rawHref) return rawHref;
+  if (rawHref.startsWith('#') || rawHref.startsWith('//')) return rawHref;
+  if (EXTERNAL_PROTOCOL_RE.test(rawHref)) return rawHref;
+  try {
+    const resolved = new URL(rawHref, SIDEBAR_HTML_PATH);
+    if (resolved.origin && resolved.origin !== window.location.origin) return rawHref;
+    return `${resolved.pathname}${resolved.search}${resolved.hash}`;
+  } catch (err) {
+    return rawHref;
+  }
+}
+
+function rewriteSidebarLinks(sidebarEl) {
+  if (!sidebarEl) return;
+  const links = sidebarEl.querySelectorAll('a[href]');
+  links.forEach((link) => {
+    const rawHref = link.getAttribute('href');
+    const resolvedHref = resolveSidebarHref(rawHref);
+    if (resolvedHref && resolvedHref !== rawHref) {
+      link.setAttribute('href', resolvedHref);
+    }
+  });
+}
+
 /**
  * Inyecta un <link> si no existe
  */
@@ -103,6 +130,7 @@ async function registerServiceWorker() {
         const existingToggle = document.getElementById('sidebarToggle');
         if (existingToggle) existingToggle.remove();
 
+        rewriteSidebarLinks(sidebarEl);
         if (sidebarEl) container.insertAdjacentElement('afterbegin', sidebarEl);
         if (toggleEl) container.insertAdjacentElement('beforeend', toggleEl);
       } else {

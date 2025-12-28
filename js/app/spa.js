@@ -1,5 +1,5 @@
 (() => {
-  const DEFAULT_VIEW = 'html/login-general/login.html';
+  const DEFAULT_VIEW = 'html/base/dashboard.html';
 
   function getInitialView() {
     const hash = window.location.hash || '';
