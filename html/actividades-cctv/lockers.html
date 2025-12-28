@@ -33,9 +33,6 @@
             <button class="hero-chip" type="button" data-estado="MANTENIMIENTO" aria-pressed="false">
               Mantenimiento <span id="lockerMaintenanceCount">--</span>
             </button>
-            <button class="hero-chip" type="button" data-estado="BLOQUEADO" aria-pressed="false">
-              Bloqueados <span id="lockerBlockedCount">--</span>
-            </button>
           </div>
         </div>
         <div class="hero-actions">
@@ -84,24 +81,9 @@
               </div>
             </div>
 
-            <div class="panel-data">
-              <div class="meta-item">
-                <span>Grupo funcional</span>
-                <strong class="meta-text" id="lockerSelectedGroup">--</strong>
-              </div>
-              <div class="meta-item">
-                <span>Colaborador</span>
-                <strong class="meta-text" id="lockerSelectedAssignee">--</strong>
-              </div>
-              <div class="meta-item">
-                <span>Fecha de asignacion</span>
-                <strong class="meta-text" id="lockerSelectedDate">--</strong>
-              </div>
-            </div>
-
             <div class="form-grid">
               <div class="field field-group">
-                <label for="lockerGroup">Grupo funcional</label>
+                <label for="lockerGroup">Area</label>
                 <select id="lockerGroup"></select>
               </div>
               <div class="field field-name">
@@ -111,6 +93,18 @@
               <div class="field field-date">
                 <label for="lockerDate">Fecha de asignacion</label>
                 <input id="lockerDate" type="date" />
+              </div>
+              <div class="field field-toggle">
+                <label class="toggle-label" for="lockerHasPadlock">
+                  <input id="lockerHasPadlock" type="checkbox" />
+                  <span>Cuenta con candado asignado</span>
+                </label>
+              </div>
+              <div class="field field-toggle">
+                <label class="toggle-label" for="lockerHasDuplicateKey">
+                  <input id="lockerHasDuplicateKey" type="checkbox" />
+                  <span>Cuenta con duplicado de llave</span>
+                </label>
               </div>
             </div>
 

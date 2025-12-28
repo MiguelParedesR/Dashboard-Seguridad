@@ -1,6 +1,6 @@
 
 (() => {
-  const GROUP_ORDER = ["LLENOS", "LCL", "MAQUINARIAS"];
+  const AREA_BASE = ["LCL", "LLENOS", "MAQUINARIAS", "TRANSPORTES"];
   const STATE_META = {
     LIBRE: {
       label: "Libre",
@@ -38,7 +38,7 @@
       hint: "No disponible"
     }
   };
-  const STATE_ORDER = ["LIBRE", "OCUPADO", "SE_DESCONOCE", "MANTENIMIENTO", "BLOQUEADO"];
+  const STATE_ORDER = ["LIBRE", "OCUPADO", "SE_DESCONOCE", "MANTENIMIENTO"];
 
   const VIRTUAL_LIMIT = 40;
   const VIRTUAL_STEP = 20;
@@ -108,8 +108,8 @@
     return normalized;
   }
 
-  function normalizeGrupo(value) {
-    if (!value) return "SIN_GRUPO";
+  function normalizeArea(value) {
+    if (!value) return "";
     return String(value).trim().toUpperCase();
   }
 
@@ -275,32 +275,32 @@
     );
   }
 
-  function getGroupOptions(lockers) {
+  function getAreaOptions(lockers) {
     const dynamic = new Set();
     lockers.forEach((locker) => {
-      const group = normalizeGrupo(locker.grupo);
-      if (group) dynamic.add(group);
+      const area = normalizeArea(locker.area);
+      if (area) dynamic.add(area);
     });
-    const extras = Array.from(dynamic).filter((group) => !GROUP_ORDER.includes(group)).sort();
-    return [...GROUP_ORDER, ...extras];
+    const extras = Array.from(dynamic).filter((area) => !AREA_BASE.includes(area)).sort();
+    return [...AREA_BASE, ...extras];
   }
 
-  function ensureGroupSelectOptions(lockers) {
-    if (!dom.groupSelect) return;
+  function ensureAreaSelectOptions(lockers) {
+    if (!dom.areaSelect) return;
 
-    const options = getGroupOptions(lockers);
-    const currentSelect = dom.groupSelect.value;
+    const options = getAreaOptions(lockers);
+    const currentSelect = dom.areaSelect.value;
 
-    dom.groupSelect.innerHTML = "";
-    options.forEach((group) => {
+    dom.areaSelect.innerHTML = "";
+    options.forEach((area) => {
       const option = document.createElement("option");
-      option.value = group;
-      option.textContent = group;
-      dom.groupSelect.appendChild(option);
+      option.value = area;
+      option.textContent = area;
+      dom.areaSelect.appendChild(option);
     });
 
     if (currentSelect) {
-      dom.groupSelect.value = currentSelect;
+      dom.areaSelect.value = currentSelect;
     }
   }
 
@@ -310,8 +310,7 @@
       LIBRE: 0,
       SE_DESCONOCE: 0,
       OCUPADO: 0,
-      MANTENIMIENTO: 0,
-      BLOQUEADO: 0
+      MANTENIMIENTO: 0
     };
 
     state.lockers.forEach((locker) => {
@@ -324,7 +323,6 @@
     if (dom.freeCount) dom.freeCount.textContent = counts.LIBRE;
     if (dom.unknownCount) dom.unknownCount.textContent = counts.SE_DESCONOCE;
     if (dom.maintenanceCount) dom.maintenanceCount.textContent = counts.MANTENIMIENTO;
-    if (dom.blockedCount) dom.blockedCount.textContent = counts.BLOQUEADO;
   }
 
   function updateLegendActive() {
@@ -606,17 +604,18 @@
     dom.blockBtn.disabled = !hasSelection;
     dom.nameInput.disabled = !hasSelection;
     dom.dateInput.disabled = !hasSelection;
-    dom.groupSelect.disabled = !hasSelection;
+    dom.areaSelect.disabled = !hasSelection;
+    dom.hasPadlock.disabled = !hasSelection;
+    dom.hasDuplicateKey.disabled = !hasSelection;
 
     setPanelOpen(hasSelection && !state.panelLocked);
 
     if (!hasSelection) {
       dom.selectedCode.textContent = "--";
-      dom.selectedGroup.textContent = "--";
-      dom.selectedAssignee.textContent = "--";
-      dom.selectedDate.textContent = "--";
-      dom.nameInput.value = "";
-      dom.dateInput.value = "";
+    dom.nameInput.value = "";
+    dom.dateInput.value = "";
+      dom.hasPadlock.checked = false;
+      dom.hasDuplicateKey.checked = false;
       dom.selectedStateBadge.style.setProperty("--state-color", "#9ca3af");
       dom.selectedStateBadge.style.setProperty("--state-ink", "#ffffff");
       dom.selectedStateLabel.textContent = "Sin seleccion";
@@ -631,13 +630,16 @@
 
     const meta = getStateMeta(locker.estado);
     dom.selectedCode.textContent = locker.codigo || "--";
-    dom.selectedGroup.textContent = normalizeGrupo(locker.grupo);
-    dom.selectedAssignee.textContent = locker.colaborador_nombre || "--";
-    dom.selectedDate.textContent = formatDate(locker.fecha_asignacion);
     dom.nameInput.value = locker.colaborador_nombre || "";
     dom.dateInput.value = locker.fecha_asignacion || "";
 
-    dom.groupSelect.value = normalizeGrupo(locker.grupo);
+    if (locker.area) {
+      dom.areaSelect.value = normalizeArea(locker.area);
+    } else if (dom.areaSelect.options.length) {
+      dom.areaSelect.value = dom.areaSelect.options[0].value;
+    }
+    dom.hasPadlock.checked = Boolean(locker.tiene_candado);
+    dom.hasDuplicateKey.checked = Boolean(locker.tiene_duplicado_llave);
     dom.selectedStateBadge.style.setProperty("--state-color", locker.color_estado || meta.color);
     dom.selectedStateBadge.style.setProperty("--state-ink", meta.text);
     dom.selectedStateLabel.textContent = meta.label;
@@ -714,7 +716,7 @@
     if (index >= 0) state.lockers[index] = data;
     else state.lockers.push(data);
 
-    ensureGroupSelectOptions(state.lockers);
+    ensureAreaSelectOptions(state.lockers);
     markUpdated(id);
     state.loadingColumns = new Set();
     renderAll();
@@ -736,17 +738,19 @@
     }
 
     const date = dom.dateInput.value || new Date().toISOString().slice(0, 10);
-    const group = dom.groupSelect.value || normalizeGrupo(locker.grupo);
+    const area = dom.areaSelect.value || normalizeArea(locker.area) || AREA_BASE[0];
     const occupiedMeta = STATE_META.OCUPADO;
 
     const payload = {
-      grupo: group,
+      area,
       updated_at: new Date().toISOString(),
       colaborador_nombre: name,
       fecha_asignacion: date || null,
       estado: "OCUPADO",
       color_estado: occupiedMeta.color,
-      icono_estado: occupiedMeta.icon
+      icono_estado: occupiedMeta.icon,
+      tiene_candado: dom.hasPadlock.checked,
+      tiene_duplicado_llave: dom.hasDuplicateKey.checked
     };
 
     await updateLocker(locker.id, payload, "Locker asignado.");
@@ -766,7 +770,9 @@
       estado: "LIBRE",
       color_estado: libreMeta.color,
       icono_estado: libreMeta.icon,
-      grupo: dom.groupSelect.value || normalizeGrupo(locker.grupo),
+      area: dom.areaSelect.value || normalizeArea(locker.area) || AREA_BASE[0],
+      tiene_candado: false,
+      tiene_duplicado_llave: false,
       updated_at: new Date().toISOString()
     };
 
@@ -788,7 +794,7 @@
         estado: target,
         color_estado: meta.color,
         icono_estado: meta.icon,
-        grupo: dom.groupSelect.value || normalizeGrupo(locker.grupo),
+        area: dom.areaSelect.value || normalizeArea(locker.area) || AREA_BASE[0],
         updated_at: new Date().toISOString()
       };
       if (!locker.colaborador_nombre) {
@@ -804,7 +810,7 @@
       estado: "BLOQUEADO",
       color_estado: blockedMeta.color,
       icono_estado: blockedMeta.icon,
-      grupo: dom.groupSelect.value || normalizeGrupo(locker.grupo),
+      area: dom.areaSelect.value || normalizeArea(locker.area) || AREA_BASE[0],
       updated_at: new Date().toISOString()
     };
 
@@ -1106,7 +1112,7 @@
       state.lockers = [];
       state.loading = false;
       unsubscribeRealtime();
-      ensureGroupSelectOptions(state.lockers);
+      ensureAreaSelectOptions(state.lockers);
       resetVirtualization();
       state.selectedId = null;
       renderAll();
@@ -1124,7 +1130,7 @@
       state.lockers = [];
       state.loading = false;
       unsubscribeRealtime();
-      ensureGroupSelectOptions(state.lockers);
+      ensureAreaSelectOptions(state.lockers);
       resetVirtualization();
       state.selectedId = null;
       renderAll();
@@ -1147,7 +1153,7 @@
       setStatus("Datos actualizados.", "success");
     }
 
-    ensureGroupSelectOptions(state.lockers);
+    ensureAreaSelectOptions(state.lockers);
     resetVirtualization();
     if (!state.lockers.find((locker) => locker.id === state.selectedId)) {
       state.selectedId = null;
@@ -1176,7 +1182,7 @@
       if (state.selectedId === oldRow.id) state.selectedId = null;
     }
 
-    ensureGroupSelectOptions(state.lockers);
+    ensureAreaSelectOptions(state.lockers);
     resetVirtualization();
     renderAll();
   }
@@ -1221,14 +1227,13 @@
       columnsContainer: root.querySelector("#lockerStatusColumns"),
       selectedHint: root.querySelector("#lockerSelectedHint"),
       selectedCode: root.querySelector("#lockerSelectedCode"),
-      selectedGroup: root.querySelector("#lockerSelectedGroup"),
-      selectedAssignee: root.querySelector("#lockerSelectedAssignee"),
-      selectedDate: root.querySelector("#lockerSelectedDate"),
       selectedStateBadge: root.querySelector("#lockerSelectedStateBadge"),
       selectedStateLabel: root.querySelector("#lockerSelectedStateLabel"),
       nameInput: root.querySelector("#lockerName"),
       dateInput: root.querySelector("#lockerDate"),
-      groupSelect: root.querySelector("#lockerGroup"),
+      areaSelect: root.querySelector("#lockerGroup"),
+      hasPadlock: root.querySelector("#lockerHasPadlock"),
+      hasDuplicateKey: root.querySelector("#lockerHasDuplicateKey"),
       assignBtn: root.querySelector("#lockerAssignBtn"),
       releaseBtn: root.querySelector("#lockerReleaseBtn"),
       blockBtn: root.querySelector("#lockerBlockBtn"),
@@ -1237,7 +1242,6 @@
       freeCount: root.querySelector("#lockerFreeCount"),
       unknownCount: root.querySelector("#lockerUnknownCount"),
       maintenanceCount: root.querySelector("#lockerMaintenanceCount"),
-      blockedCount: root.querySelector("#lockerBlockedCount"),
       legendContainer: root.querySelector(".hero-meta"),
       legendChips: Array.from(root.querySelectorAll(".hero-chip[data-estado]")),
       panel: root.querySelector("#lockerDetailPanel"),

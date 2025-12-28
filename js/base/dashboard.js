@@ -16,6 +16,17 @@ function getSupabaseClient() {
   return window.CONFIG?.SUPABASE?.getClient?.(dbKey) || null;
 }
 
+function resolveDbRef(dbRef) {
+  if (!dbRef) return resolveDbKey();
+  const byModule = window.CONFIG?.SUPABASE?.resolveDbKeyForModule?.(dbRef);
+  return byModule || dbRef;
+}
+
+function getSupabaseClientFor(dbRef) {
+  const dbKey = resolveDbRef(dbRef);
+  return window.CONFIG?.SUPABASE?.getClient?.(dbKey) || null;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   // Elementos principales
   const dashboardContent = document.getElementById('dashboardContent');
@@ -113,14 +124,23 @@ document.addEventListener('DOMContentLoaded', () => {
    * Contar filas de una tabla via Supabase de forma tolerante.
    * Retorna número (o null si fallo).
    */
-  async function countTableRows(table) {
-    const supabase = getSupabaseClient();
+  function isMissingTableError(error) {
+    if (!error) return false;
+    const status = error.status || error.statusCode || error.code;
+    if (status === 404) return true;
+    const message = String(error.message || '').toLowerCase();
+    return message.includes('does not exist') || message.includes('relation') || message.includes('not found');
+  }
+
+  async function countTableRows(table, dbRef) {
+    const supabase = getSupabaseClientFor(dbRef);
     if (!supabase) return null;
     try {
       // Intentamos usar head=true para obtener count exacto sin traer rows
       const { error, count } = await supabase.from(table).select('*', { count: 'exact', head: true });
       if (error) {
         // fallback: intentar select normal y contar
+        if (isMissingTableError(error)) return null;
         console.warn(`dashboard.js: countTableRows head error para ${table}`, error.message || error);
       } else if (typeof count === 'number') {
         return count;
@@ -129,7 +149,9 @@ document.addEventListener('DOMContentLoaded', () => {
       // fallback: traer pocas filas y contar length
       const { data, error: e2 } = await supabase.from(table).select('id').limit(1000);
       if (e2) {
-        console.warn(`dashboard.js: countTableRows fallback error para ${table}`, e2.message || e2);
+        if (!isMissingTableError(e2)) {
+          console.warn(`dashboard.js: countTableRows fallback error para ${table}`, e2.message || e2);
+        }
         return null;
       }
       return Array.isArray(data) ? data.length : null;
@@ -150,8 +172,9 @@ document.addEventListener('DOMContentLoaded', () => {
     setMetric('penalidades', '--');
     setMetric('turnosActivos', '--');
 
-    const supabase = getSupabaseClient();
-    if (!supabase) {
+    const metricsDbRef = window.CONFIG?.SUPABASE?.DASHBOARD_METRICS_DB || MODULE_KEY;
+    const metricsClient = getSupabaseClientFor(metricsDbRef) || getSupabaseClient();
+    if (!metricsClient) {
       // Si no hay supabase, coloca valores estáticos o deja placeholders
       setMetric('usuariosActivos', 12);
       setMetric('incidenciasCCTV', 5);
@@ -166,9 +189,9 @@ document.addEventListener('DOMContentLoaded', () => {
         penalidadesCount,
         tardanzasCount
       ] = await Promise.all([
-        countTableRows('agentes_seguridad'),
-        countTableRows('penalidades_aplicadas'),
-        countTableRows('tardanzas_importadas')
+        countTableRows('agentes_seguridad', metricsDbRef),
+        countTableRows('penalidades_aplicadas', metricsDbRef),
+        countTableRows('tardanzas_importadas', metricsDbRef)
       ]);
 
       // Mapear resultados (si null => mostrar --)
@@ -180,14 +203,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Para turnos activos no hay tabla explícita: si hay v_tardanzas_por_dia o similar podríamos consultar.
       // Por ahora intento contar registros de 'tardanzas_importadas' por fecha actual (como proxy).
-      if (supabase) {
+      if (metricsClient) {
         try {
           const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-          const { data, error } = await supabase.from('tardanzas_importadas').select('id', { count: 'exact', head: true }).eq('fecha_servicio', today);
+          const { data, error } = await metricsClient.from('tardanzas_importadas').select('id', { count: 'exact', head: true }).eq('fecha_servicio', today);
           if (!error && typeof data === 'undefined') {
             // Cuando head:true y select devuelve undefined data, count is in 'count' (older SDK), fallback below
             // Try another method:
-            const { count } = await supabase.from('tardanzas_importadas').select('*', { count: 'exact', head: true }).eq('fecha_servicio', today);
+            const { count } = await metricsClient.from('tardanzas_importadas').select('*', { count: 'exact', head: true }).eq('fecha_servicio', today);
             setMetric('turnosActivos', (typeof count === 'number') ? count : '--');
           } else if (!error && Array.isArray(data)) {
             setMetric('turnosActivos', data.length);
