@@ -739,38 +739,60 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
           document.head.appendChild(link);
         });
 
-        // scripts del documento
+        // scripts del documento (mantener orden para evitar dependencias rotas)
         const docScripts = Array.from(doc.querySelectorAll('script'));
-
-        const externalPromises = [];
+        const knownScripts = new Set(
+          Array.from(document.querySelectorAll('script[src]'))
+            .map((el) => el.src)
+            .filter(Boolean)
+        );
+        const skipScript = (src) => {
+          if (!src) return false;
+          return /estilos-sidebar|sidebar(-loader)?\.js/.test(src);
+        };
+        const copyScriptAttrs = (from, to) => {
+          if (!from || !to) return;
+          const attrs = ['crossorigin', 'referrerpolicy', 'integrity', 'nonce'];
+          attrs.forEach((attr) => {
+            if (from.hasAttribute(attr)) {
+              const value = from.getAttribute(attr) || '';
+              to.setAttribute(attr, value);
+            }
+          });
+          if (from.hasAttribute('nomodule')) {
+            to.setAttribute('nomodule', '');
+          }
+        };
+        const loadExternalScript = (src, type, originalEl) => {
+          if (!src) return Promise.resolve();
+          if (knownScripts.has(src)) return Promise.resolve();
+          knownScripts.add(src);
+          return new Promise((resolve) => {
+            const sc = document.createElement('script');
+            sc.src = src;
+            sc.async = false;
+            sc.defer = false;
+            if (type) sc.type = type;
+            copyScriptAttrs(originalEl, sc);
+            sc.addEventListener('load', () => resolve());
+            sc.addEventListener('error', () => {
+              console.warn('sidebar.js: error cargando script', src);
+              resolve();
+            });
+            document.body.appendChild(sc);
+          });
+        };
 
         for (const s of docScripts) {
           const srcRaw = s.getAttribute('src');
           const type = s.getAttribute('type') || s.type || '';
-          const skipScript = (src) => {
-            if (!src) return false;
-            return /estilos-sidebar|sidebar(-loader)?\.js/.test(src);
-          };
           if (srcRaw) {
             const src = resolveAssetUrl(baseForResolve, srcRaw);
             if (skipScript(src)) {
               console.debug('sidebar.js: skipping sidebar-related script during partial load', src);
               continue;
             }
-            if (!document.querySelector(`script[src="${src}"]`)) {
-              const sc = document.createElement('script');
-              sc.src = src;
-              if (type) sc.type = type;
-              const p = new Promise((resolve) => {
-                sc.addEventListener('load', () => resolve(src));
-                sc.addEventListener('error', () => {
-                  console.warn('sidebar.js: error cargando script', src);
-                  resolve(src);
-                });
-              });
-              externalPromises.push(p);
-              document.body.appendChild(sc);
-            }
+            await loadExternalScript(src, type, s);
           } else {
             const inlineText = s.textContent || '';
             if (/initSidebar\(|sidebar-loader\.js|estilos-sidebar/.test(inlineText)) {
@@ -779,16 +801,10 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
             }
             const sc = document.createElement('script');
             if (type) sc.type = type;
+            copyScriptAttrs(s, sc);
             sc.textContent = inlineText;
             document.body.appendChild(sc);
           }
-        }
-
-        // esperar externos (resiliente)
-        try {
-          await Promise.all(externalPromises);
-        } catch (err) {
-          console.warn('sidebar.js: warning al esperar scripts externos', err);
         }
 
         // dispatch DOMContentLoaded sintético y evento parcial
