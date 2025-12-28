@@ -1,4 +1,4 @@
-// /js/base/dashboard.js
+﻿// /js/base/dashboard.js
 // Lógica del dashboard: integración visual con sidebar + métricas.
 // Este archivo asume que `sidebar` y `sidebarToggle` existen en el DOM
 // pero no depende de la implementación interna de sidebar.js.
@@ -25,6 +25,18 @@ function resolveDbRef(dbRef) {
 function getSupabaseClientFor(dbRef) {
   const dbKey = resolveDbRef(dbRef);
   return window.CONFIG?.SUPABASE?.getClient?.(dbKey) || null;
+}
+
+function resolveDbForTable(tableName) {
+  return window.CONFIG?.SUPABASE?.resolveDbKeyForTable?.(tableName, MODULE_KEY) || resolveDbKey();
+}
+
+async function hasTableFor(tableName) {
+  const checker = window.CONFIG?.SUPABASE?.hasTableFor;
+  if (typeof checker === 'function') {
+    return checker(tableName, MODULE_KEY);
+  }
+  return true;
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -133,7 +145,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function countTableRows(table, dbRef) {
-    const supabase = getSupabaseClientFor(dbRef);
+    const resolved = dbRef || resolveDbForTable(table);
+    const supabase = getSupabaseClientFor(resolved);
     if (!supabase) return null;
     try {
       // Intentamos usar head=true para obtener count exacto sin traer rows
@@ -172,10 +185,14 @@ document.addEventListener('DOMContentLoaded', () => {
     setMetric('penalidades', '--');
     setMetric('turnosActivos', '--');
 
-    const metricsDbRef = window.CONFIG?.SUPABASE?.DASHBOARD_METRICS_DB || MODULE_KEY;
-    const metricsClient = getSupabaseClientFor(metricsDbRef) || getSupabaseClient();
-    if (!metricsClient) {
-      // Si no hay supabase, coloca valores estáticos o deja placeholders
+    const bootstrapClients = [
+      getSupabaseClient(),
+      getSupabaseClientFor(resolveDbForTable('agentes_seguridad')),
+      getSupabaseClientFor(resolveDbForTable('penalidades_aplicadas')),
+      getSupabaseClientFor(resolveDbForTable('tardanzas_importadas'))
+    ].filter(Boolean);
+    if (!bootstrapClients.length) {
+      // Si no hay supabase, coloca valores estケticos o deja placeholders
       setMetric('usuariosActivos', 12);
       setMetric('incidenciasCCTV', 5);
       setMetric('penalidades', 3);
@@ -183,15 +200,24 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    const [
+      hasAgentes,
+      hasPenalidades,
+      hasTardanzas
+    ] = await Promise.all([
+      hasTableFor('agentes_seguridad'),
+      hasTableFor('penalidades_aplicadas'),
+      hasTableFor('tardanzas_importadas')
+    ]);
     try {
       const [
         agentesCount,
         penalidadesCount,
         tardanzasCount
       ] = await Promise.all([
-        countTableRows('agentes_seguridad', metricsDbRef),
-        countTableRows('penalidades_aplicadas', metricsDbRef),
-        countTableRows('tardanzas_importadas', metricsDbRef)
+        hasAgentes ? countTableRows('agentes_seguridad') : null,
+        hasPenalidades ? countTableRows('penalidades_aplicadas') : null,
+        hasTardanzas ? countTableRows('tardanzas_importadas') : null
       ]);
 
       // Mapear resultados (si null => mostrar --)
@@ -203,14 +229,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Para turnos activos no hay tabla explícita: si hay v_tardanzas_por_dia o similar podríamos consultar.
       // Por ahora intento contar registros de 'tardanzas_importadas' por fecha actual (como proxy).
-      if (metricsClient) {
+      if (hasTardanzas) {
         try {
+          const tardanzasDbRef = resolveDbForTable('tardanzas_importadas');
+          const tardanzasClient = getSupabaseClientFor(tardanzasDbRef);
+          if (!tardanzasClient) return;
           const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-          const { data, error } = await metricsClient.from('tardanzas_importadas').select('id', { count: 'exact', head: true }).eq('fecha_servicio', today);
+          const { data, error } = await tardanzasClient.from('tardanzas_importadas').select('id', { count: 'exact', head: true }).eq('fecha_servicio', today);
           if (!error && typeof data === 'undefined') {
             // Cuando head:true y select devuelve undefined data, count is in 'count' (older SDK), fallback below
             // Try another method:
-            const { count } = await metricsClient.from('tardanzas_importadas').select('*', { count: 'exact', head: true }).eq('fecha_servicio', today);
+            const { count } = await tardanzasClient.from('tardanzas_importadas').select('*', { count: 'exact', head: true }).eq('fecha_servicio', today);
             setMetric('turnosActivos', (typeof count === 'number') ? count : '--');
           } else if (!error && Array.isArray(data)) {
             setMetric('turnosActivos', data.length);
@@ -258,3 +287,4 @@ document.addEventListener('DOMContentLoaded', () => {
     window.__dashboardUtils.loadMetrics = loadMetrics;
   } catch (err) { /* ignore */ }
 });
+

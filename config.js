@@ -47,6 +47,19 @@
   }, {});
   MODULE_DB_MAP.default = "LOCKERS";
 
+  const TABLE_DB_MAP = {
+    agentes_seguridad: "PENALIDADES",
+    penalidades_aplicadas: "PENALIDADES",
+    penalidades_catalogo: "PENALIDADES",
+    penalidades_evidencias: "PENALIDADES",
+    empresas: "PENALIDADES",
+    v_uit_actual: "PENALIDADES",
+    tardanzas_importadas: "PENALIDADES",
+    lockers: "LOCKERS",
+    usuarios: "LOCKERS",
+    operadores: "LOCKERS"
+  };
+
   const CLIENTS = window.__SUPABASE_CLIENTS || (window.__SUPABASE_CLIENTS = {});
   let sdkWarned = false;
 
@@ -84,6 +97,24 @@
   function normalizeDbKey(dbKey) {
     if (!dbKey) return dbKey;
     return DB_ALIASES[dbKey] || dbKey;
+  }
+
+  function normalizeTableName(tableName) {
+    return String(tableName || "").trim().toLowerCase();
+  }
+
+  function resolveDbKeyFromInput(input) {
+    if (!input) return null;
+    const normalized = normalizeDbKey(input);
+    if (DATABASES_BY_KEY[normalized]) return normalized;
+    return resolveDbKeyForModule(input);
+  }
+
+  function resolveDbKeyForTable(tableName, moduleName) {
+    const normalized = normalizeTableName(tableName);
+    const mapped = TABLE_DB_MAP[normalized];
+    if (mapped) return mapped;
+    return resolveDbKeyFromInput(moduleName) || MODULE_DB_MAP.default;
   }
 
   function getDbConfig(dbKey) {
@@ -125,6 +156,54 @@
 
   function resolveDbKeyForModule(moduleName) {
     return MODULE_DB_MAP[moduleName] || MODULE_DB_MAP.default;
+  }
+
+  const TABLE_LIST_CACHE = {};
+
+  async function listTables(dbKey, options = {}) {
+    const resolved = resolveDbKeyFromInput(dbKey);
+    if (!resolved) return null;
+    if (!options.force && TABLE_LIST_CACHE[resolved]) return TABLE_LIST_CACHE[resolved];
+    const db = getDbConfig(resolved);
+    if (!db || !db.url || !db.anonKey) return null;
+    try {
+      const base = String(db.url).replace(/\/$/, "");
+      const resp = await fetch(`${base}/rest/v1/`, {
+        headers: {
+          apikey: db.anonKey,
+          Accept: "application/openapi+json"
+        }
+      });
+      if (!resp.ok) return null;
+      const spec = await resp.json();
+      const paths = Object.keys(spec.paths || {});
+      const set = new Set(
+        paths
+          .map((p) => p.replace(/^\//, ""))
+          .filter((p) => p && !p.startsWith("rpc/"))
+      );
+      TABLE_LIST_CACHE[resolved] = set;
+      return set;
+    } catch (err) {
+      console.warn("[Supabase] no se pudo listar tablas para", resolved, err);
+      return null;
+    }
+  }
+
+  async function hasTable(dbKey, tableName, options = {}) {
+    const tables = await listTables(dbKey, options);
+    if (!tables) return false;
+    return tables.has(normalizeTableName(tableName));
+  }
+
+  async function hasTableFor(tableName, moduleName, options = {}) {
+    const dbKey = resolveDbKeyForTable(tableName, moduleName);
+    return hasTable(dbKey, tableName, options);
+  }
+
+  function getClientForTable(tableName, moduleName) {
+    const dbKey = resolveDbKeyForTable(tableName, moduleName);
+    return getClient(dbKey);
   }
 
   function setDefaultClient(dbKey) {
@@ -185,6 +264,11 @@
       loadSdk: loadSupabaseSdk,
       getConfig: getDbConfig,
       resolveDbKeyForModule,
+      resolveDbKeyForTable,
+      getClientForTable,
+      listTables,
+      hasTable,
+      hasTableFor,
       setDefaultClient
     }
   };
