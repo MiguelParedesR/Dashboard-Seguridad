@@ -32,7 +32,11 @@ async function getSupabaseClient() {
   return waiter(resolveDbKey());
 }
 
-document.addEventListener('DOMContentLoaded', function () {
+function initLogin() {
+  const root = document.querySelector('.login-container');
+  if (!root) return;
+  if (root.dataset.loginInit === 'true') return;
+  root.dataset.loginInit = 'true';
   // Cached DOM elements (use optional chaining and guards to avoid null errors)
   const adminBtn = document.getElementById('adminBtn');
   const operadorBtn = document.getElementById('operadorBtn');
@@ -131,4 +135,11 @@ document.addEventListener('DOMContentLoaded', function () {
       alert('Clave incorrecta');
     }
   });
-});
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initLogin);
+} else {
+  initLogin();
+}
+document.addEventListener('partial:loaded', initLogin);

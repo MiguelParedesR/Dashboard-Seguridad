@@ -86,13 +86,71 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
   // -------------------------
   (async () => {
     let supabase = null;
+    let configReadyPromise = null;
+    let configScriptPromise = null;
+
+    function ensureScript(src, attrs = {}) {
+      const target = new URL(src, window.location.href).href;
+      const existing = Array.from(document.querySelectorAll('script[src]'))
+        .find((el) => el.src === target || el.getAttribute('src') === target);
+      if (existing) return Promise.resolve(existing);
+      if (configScriptPromise && attrs.__key === 'config') return configScriptPromise;
+      const promise = new Promise((resolve) => {
+        const script = document.createElement('script');
+        script.src = target;
+        script.async = false;
+        script.defer = false;
+        Object.keys(attrs || {}).forEach((key) => {
+          if (key === '__key') return;
+          script.setAttribute(key, attrs[key]);
+        });
+        script.addEventListener('load', () => resolve(script));
+        script.addEventListener('error', () => resolve(null));
+        document.head.appendChild(script);
+      });
+      if (attrs.__key === 'config') configScriptPromise = promise;
+      return promise;
+    }
+
+    function ensureConfigReady(options = {}) {
+      if (window.CONFIG?.__initialized) return Promise.resolve(window.CONFIG);
+      if (configReadyPromise) return configReadyPromise;
+      const maxAttempts = options.maxAttempts ?? 80;
+      const waitMs = options.waitMs ?? 120;
+      configReadyPromise = (async () => {
+        try {
+          const configUrl = resolveFromRoot('config.js');
+          await ensureScript(configUrl, { __key: 'config' });
+        } catch (err) {
+          console.warn('sidebar.js: no se pudo cargar config.js.', err?.message ?? err);
+        }
+        return new Promise((resolve) => {
+          let attempts = 0;
+          const tick = () => {
+            if (window.CONFIG?.__initialized) {
+              resolve(window.CONFIG);
+              return;
+            }
+            attempts += 1;
+            if (attempts >= maxAttempts) {
+              resolve(null);
+              return;
+            }
+            setTimeout(tick, waitMs);
+          };
+          tick();
+        });
+      })();
+      return configReadyPromise;
+    }
+
     try {
-      await import('../../config.js');
-      const dbKey = window.CONFIG?.SUPABASE?.resolveDbKeyForModule?.('sidebar') || 'DASHBOARD';
-      const waiter = window.CONFIG?.SUPABASE?.waitForClient;
+      const config = await ensureConfigReady();
+      const dbKey = config?.SUPABASE?.resolveDbKeyForModule?.('sidebar') || 'DASHBOARD';
+      const waiter = config?.SUPABASE?.waitForClient;
       supabase = typeof waiter === 'function' ? await waiter(dbKey) : null;
     } catch (err) {
-      console.warn('sidebar.js: no se pudo importar config.js (ok en dev).', err?.message ?? err);
+      console.warn('sidebar.js: fallo al inicializar Supabase para sidebar.', err?.message ?? err);
     }
 
     // -------------------------
@@ -632,6 +690,12 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
     function setActiveByHref(href) {
       if (!href) return;
       const normalized = normalizeHrefValue(href);
+      let targetLocal = '';
+      try {
+        targetLocal = new URL(href, window.location.href).searchParams.get('local') || '';
+      } catch (err) {
+        targetLocal = '';
+      }
       // limpiar todos
       const lis = sidebar.querySelectorAll('.menu > li');
       lis.forEach(li => li.classList.remove('active-link'));
@@ -640,7 +704,14 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
         const aHref = a.getAttribute('href') || '';
         const normalizedA = normalizeHrefValue(aHref);
         const normalizedAbs = a.href ? normalizeHrefValue(a.href) : '';
-        if (normalizedA === normalized || normalizedAbs === normalized || normalizedAbs.endsWith(normalized)) {
+        let anchorLocal = '';
+        try {
+          anchorLocal = new URL(aHref, window.location.href).searchParams.get('local') || '';
+        } catch (err) {
+          anchorLocal = '';
+        }
+        const localMatches = !anchorLocal || anchorLocal.toUpperCase() === targetLocal.toUpperCase();
+        if (localMatches && (normalizedA === normalized || normalizedAbs === normalized || normalizedAbs.endsWith(normalized))) {
           const li = a.closest('li');
           if (li) {
             li.classList.add('active-link');
@@ -740,6 +811,7 @@ export async function initSidebar(containerSelector = '#sidebar-container', opti
         });
 
         // scripts del documento (mantener orden para evitar dependencias rotas)
+        await ensureConfigReady();
         const docScripts = Array.from(doc.querySelectorAll('script'));
         const knownScripts = new Set(
           Array.from(document.querySelectorAll('script[src]'))

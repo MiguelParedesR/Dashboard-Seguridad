@@ -6,6 +6,7 @@
 import '../../config.js';
 
 const MODULE_KEY = 'dashboard';
+let dashboardBooting = false;
 
 function resolveDbKey() {
   return window.CONFIG?.SUPABASE?.resolveDbKeyForModule?.(MODULE_KEY) || 'DASHBOARD';
@@ -39,9 +40,15 @@ async function hasTableFor(tableName) {
   return true;
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  // Elementos principales
+function bootDashboard() {
+  if (dashboardBooting) return;
   const dashboardContent = document.getElementById('dashboardContent');
+  if (!dashboardContent) return;
+  if (dashboardContent.dataset.dashboardInit === 'true') return;
+  dashboardContent.dataset.dashboardInit = 'true';
+  dashboardBooting = true;
+
+  // Elementos principales
   const sidebar = document.getElementById('sidebar');           // puede venir inline o cargado dinámicamente
   const toggleBtn = document.getElementById('sidebarToggle');   // boton hamburguesa (mobile)
   const collapseBtn = document.getElementById('collapseBtn');  // opcional (desktop icon-only)
@@ -286,5 +293,17 @@ document.addEventListener('DOMContentLoaded', () => {
     window.__dashboardUtils.adjustContentMargin = adjustContentMargin;
     window.__dashboardUtils.loadMetrics = loadMetrics;
   } catch (err) { /* ignore */ }
-});
+  dashboardBooting = false;
+}
+
+function scheduleDashboardBoot() {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bootDashboard, { once: true });
+  } else {
+    bootDashboard();
+  }
+}
+
+scheduleDashboardBoot();
+document.addEventListener('partial:loaded', bootDashboard);
 

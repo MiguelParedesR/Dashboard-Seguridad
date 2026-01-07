@@ -41,7 +41,11 @@ const TABLE_HEADERS = [
     'Fecha', 'Turno', 'Empresa', 'Local', 'Agente', 'Hora de llegada', 'Horas sin cubrir', 'Penalidad (S/.)', 'Observaciones'
 ];
 
-document.addEventListener('DOMContentLoaded', () => {
+function initExcel() {
+    const root = document.querySelector('main.wrap');
+    if (!root) return;
+    if (root.dataset.excelInit === 'true') return;
+    root.dataset.excelInit = 'true';
     // Home cards
     $('#cardAsis')?.addEventListener('click', () => openView('asis'));
     $('#cardPen')?.addEventListener('click', () => openView('pen'));
@@ -86,7 +90,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Cabeceras estándar
     $('#theadRow').innerHTML = TABLE_HEADERS.map(h => `<th>${h}</th>`).join('');
-});
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initExcel);
+} else {
+    initExcel();
+}
+document.addEventListener('partial:loaded', initExcel);
 
 // ---------- NAV ----------
 function openView(view) {

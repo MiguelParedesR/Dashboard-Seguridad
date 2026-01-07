@@ -1,6 +1,7 @@
 
 (() => {
-  const AREA_BASE = ["LCL", "LLENOS", "MAQUINARIAS", "TRANSPORTES"];
+  const AREA_BASE = ["LCL", "REEFERS", "LLENOS", "MAQUINARIAS", "TRANSPORTES", "VACIOS"];
+  const LOCAL_BASE = ["TPP1", "TPP2", "TPP3", "TPP4"];
   const STATE_META = {
     LIBRE: {
       label: "Libre",
@@ -44,6 +45,7 @@
   const VIRTUAL_STEP = 20;
   const LONG_PRESS_MS = 520;
   const COLLAPSE_KEY = "lockers:collapsed";
+  const VIEW_MODE_KEY = "lockers:view-mode";
   const HEADER_COMPACT_Y = 140;
   const HEADER_EXPAND_Y = 80;
 
@@ -52,8 +54,12 @@
     selectedId: null,
     filters: {
       search: "",
-      estado: "ALL"
+      estado: "ALL",
+      local: ""
     },
+    initialLocal: "",
+    localManual: false,
+    viewMode: "assignments",
     channel: null,
     active: false,
     loading: false,
@@ -113,6 +119,11 @@
     return String(value).trim().toUpperCase();
   }
 
+  function normalizeLocal(value) {
+    if (!value) return "";
+    return String(value).trim().toUpperCase();
+  }
+
   function getStateMeta(value) {
     const key = normalizeEstado(value);
     return STATE_META[key] || STATE_META.LIBRE;
@@ -147,6 +158,23 @@
   function saveCollapseState() {
     try {
       localStorage.setItem(COLLAPSE_KEY, JSON.stringify(state.collapsedStates));
+    } catch (err) {
+      // ignore storage issues
+    }
+  }
+
+  function readViewMode() {
+    try {
+      const saved = localStorage.getItem(VIEW_MODE_KEY);
+      return saved || "";
+    } catch (err) {
+      return "";
+    }
+  }
+
+  function saveViewMode(mode) {
+    try {
+      localStorage.setItem(VIEW_MODE_KEY, mode);
     } catch (err) {
       // ignore storage issues
     }
@@ -245,16 +273,23 @@
   }
 
   function getSelectedLocker() {
-    return state.lockers.find((locker) => locker.id === state.selectedId) || null;
+    const locker = state.lockers.find((item) => item.id === state.selectedId) || null;
+    if (!locker) return null;
+    const local = normalizeLocal(state.filters.local);
+    if (local && local !== "ALL" && normalizeLocal(locker.local) !== local) return null;
+    return locker;
   }
 
   function applyFilters(list, override = {}) {
     const searchValue = override.search !== undefined ? override.search : state.filters.search;
     const search = String(searchValue || "").trim().toLowerCase();
     const estado = override.estado !== undefined ? override.estado : state.filters.estado;
+    const localValue = override.local !== undefined ? override.local : state.filters.local;
+    const local = normalizeLocal(localValue);
 
     return list.filter((locker) => {
       if (locker.activo === false) return false;
+      if (local && local !== "ALL" && normalizeLocal(locker.local) !== local) return false;
       if (estado !== "ALL" && normalizeEstado(locker.estado) !== estado) return false;
 
       if (!search) return true;
@@ -285,6 +320,42 @@
     return [...AREA_BASE, ...extras];
   }
 
+  function getOrderedLocals(list) {
+    const seen = new Set();
+    const order = [];
+    list.forEach((value) => {
+      const normalized = normalizeLocal(value);
+      if (!normalized || seen.has(normalized)) return;
+      seen.add(normalized);
+    });
+    LOCAL_BASE.forEach((local) => {
+      if (seen.has(local)) {
+        order.push(local);
+        seen.delete(local);
+      }
+    });
+    const extras = Array.from(seen).sort();
+    return [...order, ...extras];
+  }
+
+  function getLocalOptions(lockers) {
+    const dataLocals = [];
+    lockers.forEach((locker) => {
+      const local = normalizeLocal(locker.local);
+      if (local) dataLocals.push(local);
+    });
+    return getOrderedLocals([...LOCAL_BASE, ...dataLocals]);
+  }
+
+  function getDataLocals(lockers) {
+    const dataLocals = [];
+    lockers.forEach((locker) => {
+      const local = normalizeLocal(locker.local);
+      if (local) dataLocals.push(local);
+    });
+    return getOrderedLocals(dataLocals);
+  }
+
   function ensureAreaSelectOptions(lockers) {
     if (!dom.areaSelect) return;
 
@@ -304,16 +375,371 @@
     }
   }
 
+  function ensureLocalSelectOptions(lockers) {
+    if (!dom.localSelect) return;
+
+    const options = getLocalOptions(lockers);
+    const currentSelect = dom.localSelect.value;
+
+    dom.localSelect.innerHTML = "";
+    options.forEach((local) => {
+      const option = document.createElement("option");
+      option.value = local;
+      option.textContent = local;
+      dom.localSelect.appendChild(option);
+    });
+
+    if (currentSelect) {
+      dom.localSelect.value = currentSelect;
+    } else if (state.filters.local) {
+      dom.localSelect.value = state.filters.local;
+    }
+  }
+
+  function getLocalFromUrl() {
+    try {
+      const url = new URL(window.location.href);
+      const fromQuery = url.searchParams.get("local");
+      if (fromQuery) return fromQuery;
+      if (url.hash) return url.hash.replace("#", "");
+    } catch (err) {
+      return "";
+    }
+    return "";
+  }
+
+  function ensureLocalSelection() {
+    const dataLocals = getDataLocals(state.lockers);
+    const allLocals = getLocalOptions(state.lockers);
+    const current = normalizeLocal(state.filters.local);
+    const initial = normalizeLocal(state.initialLocal);
+
+    if (initial && allLocals.includes(initial)) {
+      state.filters.local = initial;
+      state.initialLocal = "";
+      return;
+    }
+
+    if (!current) {
+      state.filters.local = dataLocals[0] || allLocals[0] || "";
+      return;
+    }
+
+    if (!state.localManual && dataLocals.length && !dataLocals.includes(current)) {
+      state.filters.local = dataLocals[0];
+    }
+  }
+
+  function updateUrlLocal(local) {
+    try {
+      const url = new URL(window.location.href);
+      if (local) url.searchParams.set("local", local);
+      else url.searchParams.delete("local");
+      const nextUrl = `${url.pathname}${url.search}${url.hash}`;
+      const nextState = Object.assign({}, history.state || {});
+      history.replaceState(nextState, "", nextUrl);
+    } catch (err) {
+      // ignore
+    }
+  }
+
+  function setLocalFilter(local, options = {}) {
+    const normalized = normalizeLocal(local);
+    if (!normalized) return;
+    if (state.filters.local === normalized) return;
+    state.filters.local = normalized;
+    state.localManual = true;
+    const selected = getSelectedLocker();
+    if (selected && normalizeLocal(selected.local) !== normalized) {
+      state.selectedId = null;
+      state.panelLocked = false;
+    }
+    if (options.updateUrl !== false) updateUrlLocal(normalized);
+    renderAll();
+  }
+
+  function updateViewModeUI() {
+    if (!dom.root) return;
+    const isAssignments = state.viewMode === "assignments";
+    dom.root.classList.toggle("view-assignments", isAssignments);
+    dom.root.classList.toggle("view-states", !isAssignments);
+    if (dom.viewToggles) {
+      dom.viewToggles.forEach((toggle) => {
+        const isActive = toggle.dataset.view === state.viewMode;
+        toggle.classList.toggle("is-active", isActive);
+        toggle.setAttribute("aria-pressed", isActive ? "true" : "false");
+      });
+    }
+  }
+
+  function setViewMode(mode, options = {}) {
+    if (!mode || (mode !== "assignments" && mode !== "states")) return;
+    state.viewMode = mode;
+    if (options.persist !== false) saveViewMode(mode);
+    updateViewModeUI();
+  }
+
+  function renderLocalTabs() {
+    if (!dom.localTabs) return;
+    const options = getLocalOptions(state.lockers);
+    dom.localTabs.innerHTML = "";
+    options.forEach((local) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "local-tab";
+      button.dataset.local = local;
+      button.textContent = local;
+      const isActive = normalizeLocal(state.filters.local) === local;
+      button.classList.toggle("is-active", isActive);
+      button.setAttribute("aria-pressed", isActive ? "true" : "false");
+      dom.localTabs.appendChild(button);
+    });
+
+    if (dom.localLabel) {
+      dom.localLabel.textContent = state.filters.local || "--";
+    }
+  }
+
+  function renderAreaItem(locker) {
+    const meta = getStateMeta(locker.estado);
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "area-item";
+    item.dataset.id = locker.id;
+    item.style.setProperty("--state-color", locker.color_estado || meta.color);
+    item.style.setProperty("--state-ink", meta.text);
+
+    const main = document.createElement("div");
+    main.className = "area-main";
+
+    const person = document.createElement("div");
+    person.className = "area-person";
+    person.textContent = locker.colaborador_nombre || "Sin asignacion";
+
+    const code = document.createElement("div");
+    code.className = "area-code";
+    code.textContent = locker.codigo || "--";
+
+    main.appendChild(person);
+    main.appendChild(code);
+
+    const metaLine = document.createElement("div");
+    metaLine.className = "area-meta-line";
+
+    const stateBadge = document.createElement("div");
+    stateBadge.className = "area-state";
+    stateBadge.textContent = meta.label;
+
+    const indicators = document.createElement("div");
+    indicators.className = "area-indicators";
+
+    const padlock = document.createElement("span");
+    padlock.className = "area-indicator";
+    if (locker.tiene_candado) padlock.classList.add("is-on");
+    padlock.title = locker.tiene_candado ? "Tiene candado" : "Sin candado";
+    const padlockIcon = document.createElement("i");
+    padlockIcon.className = "fa-solid fa-lock";
+    padlockIcon.setAttribute("aria-hidden", "true");
+    padlock.appendChild(padlockIcon);
+
+    const duplicate = document.createElement("span");
+    duplicate.className = "area-indicator";
+    if (locker.tiene_duplicado_llave) duplicate.classList.add("is-on");
+    duplicate.title = locker.tiene_duplicado_llave ? "Tiene duplicado" : "Sin duplicado";
+    const duplicateIcon = document.createElement("i");
+    duplicateIcon.className = "fa-solid fa-key";
+    duplicateIcon.setAttribute("aria-hidden", "true");
+    duplicate.appendChild(duplicateIcon);
+
+    indicators.appendChild(padlock);
+    indicators.appendChild(duplicate);
+
+    metaLine.appendChild(stateBadge);
+    metaLine.appendChild(indicators);
+
+    item.appendChild(main);
+    item.appendChild(metaLine);
+
+    const labelParts = [locker.colaborador_nombre || "Sin asignacion", locker.codigo || "--", meta.label];
+    item.setAttribute("aria-label", labelParts.join(" - "));
+
+    return item;
+  }
+
+  function renderAreaRow(locker) {
+    const meta = getStateMeta(locker.estado);
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = "area-row";
+    row.dataset.id = locker.id;
+    row.style.setProperty("--state-color", locker.color_estado || meta.color);
+    row.style.setProperty("--state-ink", meta.text);
+
+    const main = document.createElement("div");
+    main.className = "area-row-main";
+
+    const name = document.createElement("div");
+    name.className = "area-row-name";
+    name.textContent = locker.colaborador_nombre || "Sin asignacion";
+
+    const code = document.createElement("div");
+    code.className = "area-row-code";
+    code.textContent = locker.codigo || "--";
+
+    main.appendChild(name);
+    main.appendChild(code);
+
+    const metaWrap = document.createElement("div");
+    metaWrap.className = "area-row-meta";
+
+    const stateBadge = document.createElement("div");
+    stateBadge.className = "area-row-state";
+    stateBadge.textContent = meta.label;
+
+    const indicators = document.createElement("div");
+    indicators.className = "area-row-indicators";
+
+    const padlock = document.createElement("span");
+    padlock.className = "area-indicator";
+    if (locker.tiene_candado) padlock.classList.add("is-on");
+    padlock.title = locker.tiene_candado ? "Tiene candado" : "Sin candado";
+    const padlockIcon = document.createElement("i");
+    padlockIcon.className = "fa-solid fa-lock";
+    padlockIcon.setAttribute("aria-hidden", "true");
+    padlock.appendChild(padlockIcon);
+
+    const duplicate = document.createElement("span");
+    duplicate.className = "area-indicator";
+    if (locker.tiene_duplicado_llave) duplicate.classList.add("is-on");
+    duplicate.title = locker.tiene_duplicado_llave ? "Tiene duplicado" : "Sin duplicado";
+    const duplicateIcon = document.createElement("i");
+    duplicateIcon.className = "fa-solid fa-key";
+    duplicateIcon.setAttribute("aria-hidden", "true");
+    duplicate.appendChild(duplicateIcon);
+
+    indicators.appendChild(padlock);
+    indicators.appendChild(duplicate);
+
+    metaWrap.appendChild(stateBadge);
+    metaWrap.appendChild(indicators);
+
+    row.appendChild(main);
+    row.appendChild(metaWrap);
+
+    const labelParts = [locker.colaborador_nombre || "Sin asignacion", locker.codigo || "--", meta.label];
+    row.setAttribute("aria-label", labelParts.join(" - "));
+
+    return row;
+  }
+
+  function renderAreaList() {
+    if (!dom.areaListView) return;
+    const filtered = applyFilters(state.lockers, { estado: "ALL" });
+    const assigned = filtered.filter((locker) => locker.colaborador_nombre);
+    const areas = getAreaOptions(filtered);
+
+    dom.areaListView.innerHTML = "";
+    let groupsRendered = 0;
+    areas.forEach((area) => {
+      const group = document.createElement("section");
+      group.className = "area-list-group";
+
+      const header = document.createElement("div");
+      header.className = "area-list-header";
+
+      const title = document.createElement("div");
+      title.className = "area-list-title";
+      title.textContent = area;
+
+      const list = document.createElement("div");
+      list.className = "area-list-rows";
+
+      const areaItems = sortLockers(
+        assigned.filter((locker) => normalizeArea(locker.area) === area)
+      );
+      if (!areaItems.length) {
+        return;
+      }
+
+      areaItems.forEach((locker) => list.appendChild(renderAreaRow(locker)));
+
+      const count = document.createElement("div");
+      count.className = "area-list-count";
+      count.textContent = `${areaItems.length}`;
+
+      header.appendChild(title);
+      header.appendChild(count);
+      group.appendChild(header);
+      group.appendChild(list);
+      dom.areaListView.appendChild(group);
+      groupsRendered += 1;
+    });
+
+    if (!groupsRendered) {
+      const empty = document.createElement("div");
+      empty.className = "area-empty";
+      empty.textContent = "Sin asignaciones en este local.";
+      dom.areaListView.appendChild(empty);
+    }
+  }
+
+  function renderAreaCards() {
+    if (!dom.areaGrid) return;
+    const filtered = applyFilters(state.lockers, { estado: "ALL" });
+    const assigned = filtered.filter((locker) => locker.colaborador_nombre);
+    const areas = getAreaOptions(filtered);
+
+    dom.areaGrid.innerHTML = "";
+    areas.forEach((area) => {
+      const card = document.createElement("article");
+      card.className = "area-card";
+
+      const header = document.createElement("div");
+      header.className = "area-card-header";
+
+      const title = document.createElement("div");
+      title.className = "area-card-title";
+      title.textContent = area;
+
+      const list = document.createElement("div");
+      list.className = "area-list";
+
+      const areaItems = sortLockers(
+        assigned.filter((locker) => normalizeArea(locker.area) === area)
+      );
+      if (!areaItems.length) {
+        const empty = document.createElement("div");
+        empty.className = "area-empty";
+        empty.textContent = "Sin asignaciones";
+        list.appendChild(empty);
+      } else {
+        areaItems.forEach((locker) => list.appendChild(renderAreaItem(locker)));
+      }
+
+      const count = document.createElement("div");
+      count.className = "area-card-count";
+      count.textContent = `${areaItems.length}`;
+
+      header.appendChild(title);
+      header.appendChild(count);
+      card.appendChild(header);
+      card.appendChild(list);
+      dom.areaGrid.appendChild(card);
+    });
+
+  }
+
   function renderSummary() {
+    const list = applyFilters(state.lockers, { estado: "ALL" });
     const counts = {
-      TOTAL: state.lockers.length,
+      TOTAL: list.length,
       LIBRE: 0,
       SE_DESCONOCE: 0,
       OCUPADO: 0,
       MANTENIMIENTO: 0
     };
 
-    state.lockers.forEach((locker) => {
+    list.forEach((locker) => {
       const key = normalizeEstado(locker.estado);
       if (counts[key] !== undefined) counts[key] += 1;
     });
@@ -605,6 +1031,7 @@
     dom.nameInput.disabled = !hasSelection;
     dom.dateInput.disabled = !hasSelection;
     dom.areaSelect.disabled = !hasSelection;
+    dom.localSelect.disabled = !hasSelection;
     dom.hasPadlock.disabled = !hasSelection;
     dom.hasDuplicateKey.disabled = !hasSelection;
 
@@ -612,10 +1039,14 @@
 
     if (!hasSelection) {
       dom.selectedCode.textContent = "--";
-    dom.nameInput.value = "";
-    dom.dateInput.value = "";
+      dom.nameInput.value = "";
+      dom.dateInput.value = "";
       dom.hasPadlock.checked = false;
       dom.hasDuplicateKey.checked = false;
+      if (dom.localSelect) {
+        dom.localSelect.value =
+          state.filters.local || dom.localSelect.options[0]?.value || "";
+      }
       dom.selectedStateBadge.style.setProperty("--state-color", "#9ca3af");
       dom.selectedStateBadge.style.setProperty("--state-ink", "#ffffff");
       dom.selectedStateLabel.textContent = "Sin seleccion";
@@ -637,6 +1068,13 @@
       dom.areaSelect.value = normalizeArea(locker.area);
     } else if (dom.areaSelect.options.length) {
       dom.areaSelect.value = dom.areaSelect.options[0].value;
+    }
+    if (locker.local) {
+      dom.localSelect.value = normalizeLocal(locker.local);
+    } else if (state.filters.local) {
+      dom.localSelect.value = state.filters.local;
+    } else if (dom.localSelect.options.length) {
+      dom.localSelect.value = dom.localSelect.options[0].value;
     }
     dom.hasPadlock.checked = Boolean(locker.tiene_candado);
     dom.hasDuplicateKey.checked = Boolean(locker.tiene_duplicado_llave);
@@ -664,6 +1102,10 @@
   }
 
   function renderAll() {
+    ensureLocalSelection();
+    renderLocalTabs();
+    updateViewModeUI();
+    renderAreaList();
     renderSummary();
     renderColumns();
     renderSelected();
@@ -717,6 +1159,7 @@
     else state.lockers.push(data);
 
     ensureAreaSelectOptions(state.lockers);
+    ensureLocalSelectOptions(state.lockers);
     markUpdated(id);
     state.loadingColumns = new Set();
     renderAll();
@@ -739,10 +1182,16 @@
 
     const date = dom.dateInput.value || new Date().toISOString().slice(0, 10);
     const area = dom.areaSelect.value || normalizeArea(locker.area) || AREA_BASE[0];
+    const local =
+      normalizeLocal(dom.localSelect.value) ||
+      normalizeLocal(locker.local) ||
+      state.filters.local ||
+      LOCAL_BASE[0];
     const occupiedMeta = STATE_META.OCUPADO;
 
     const payload = {
       area,
+      local,
       updated_at: new Date().toISOString(),
       colaborador_nombre: name,
       fecha_asignacion: date || null,
@@ -764,6 +1213,11 @@
     }
 
     const libreMeta = STATE_META.LIBRE;
+    const local =
+      normalizeLocal(dom.localSelect.value) ||
+      normalizeLocal(locker.local) ||
+      state.filters.local ||
+      LOCAL_BASE[0];
     const payload = {
       colaborador_nombre: null,
       fecha_asignacion: null,
@@ -771,6 +1225,7 @@
       color_estado: libreMeta.color,
       icono_estado: libreMeta.icon,
       area: dom.areaSelect.value || normalizeArea(locker.area) || AREA_BASE[0],
+      local,
       tiene_candado: false,
       tiene_duplicado_llave: false,
       updated_at: new Date().toISOString()
@@ -786,6 +1241,11 @@
       return;
     }
 
+    const local =
+      normalizeLocal(dom.localSelect.value) ||
+      normalizeLocal(locker.local) ||
+      state.filters.local ||
+      LOCAL_BASE[0];
     const estado = normalizeEstado(locker.estado);
     if (estado === "BLOQUEADO") {
       const target = locker.colaborador_nombre ? "OCUPADO" : "LIBRE";
@@ -795,6 +1255,7 @@
         color_estado: meta.color,
         icono_estado: meta.icon,
         area: dom.areaSelect.value || normalizeArea(locker.area) || AREA_BASE[0],
+        local,
         updated_at: new Date().toISOString()
       };
       if (!locker.colaborador_nombre) {
@@ -811,6 +1272,7 @@
       color_estado: blockedMeta.color,
       icono_estado: blockedMeta.icon,
       area: dom.areaSelect.value || normalizeArea(locker.area) || AREA_BASE[0],
+      local,
       updated_at: new Date().toISOString()
     };
 
@@ -822,6 +1284,28 @@
     dom.root.classList.toggle("panel-open", open);
     dom.panel?.setAttribute("aria-hidden", open ? "false" : "true");
     dom.panelBackdrop?.setAttribute("aria-hidden", open ? "false" : "true");
+  }
+
+  function handleLocalTabClick(event) {
+    const button = event.target.closest(".local-tab");
+    if (!button) return;
+    setLocalFilter(button.dataset.local);
+  }
+
+  function handleViewToggle(event) {
+    const toggle = event.target.closest(".view-tab");
+    if (!toggle) return;
+    setViewMode(toggle.dataset.view);
+    renderAll();
+  }
+
+  function handleAreaItemClick(event) {
+    const item = event.target.closest(".area-item, .area-row");
+    if (!item) return;
+    state.panelLocked = false;
+    state.selectedId = item.dataset.id;
+    closeQuickMenu();
+    renderAll();
   }
 
   function handleLegendFilter(estado) {
@@ -1070,6 +1554,10 @@
     dom.blockBtn.addEventListener("click", handleToggleBlock);
     dom.panelClose.addEventListener("click", handlePanelClose);
     dom.panelBackdrop.addEventListener("click", handlePanelClose);
+    dom.localTabs?.addEventListener("click", handleLocalTabClick);
+    dom.viewTabs?.addEventListener("click", handleViewToggle);
+    dom.areaGrid?.addEventListener("click", handleAreaItemClick);
+    dom.areaListView?.addEventListener("click", handleAreaItemClick);
     dom.panelCard?.addEventListener("touchstart", handlePanelTouchStart, { passive: true });
     dom.panelCard?.addEventListener("touchend", handlePanelTouchEnd, { passive: true });
     dom.panelCard?.addEventListener("touchcancel", handlePanelTouchEnd, { passive: true });
@@ -1113,6 +1601,7 @@
       state.loading = false;
       unsubscribeRealtime();
       ensureAreaSelectOptions(state.lockers);
+      ensureLocalSelectOptions(state.lockers);
       resetVirtualization();
       state.selectedId = null;
       renderAll();
@@ -1131,6 +1620,7 @@
       state.loading = false;
       unsubscribeRealtime();
       ensureAreaSelectOptions(state.lockers);
+      ensureLocalSelectOptions(state.lockers);
       resetVirtualization();
       state.selectedId = null;
       renderAll();
@@ -1154,6 +1644,7 @@
     }
 
     ensureAreaSelectOptions(state.lockers);
+    ensureLocalSelectOptions(state.lockers);
     resetVirtualization();
     if (!state.lockers.find((locker) => locker.id === state.selectedId)) {
       state.selectedId = null;
@@ -1183,6 +1674,7 @@
     }
 
     ensureAreaSelectOptions(state.lockers);
+    ensureLocalSelectOptions(state.lockers);
     resetVirtualization();
     renderAll();
   }
@@ -1232,6 +1724,7 @@
       nameInput: root.querySelector("#lockerName"),
       dateInput: root.querySelector("#lockerDate"),
       areaSelect: root.querySelector("#lockerGroup"),
+      localSelect: root.querySelector("#lockerLocal"),
       hasPadlock: root.querySelector("#lockerHasPadlock"),
       hasDuplicateKey: root.querySelector("#lockerHasDuplicateKey"),
       assignBtn: root.querySelector("#lockerAssignBtn"),
@@ -1253,7 +1746,15 @@
       quickMenu: root.querySelector("#lockerQuickMenu"),
       quickAssign: root.querySelector("#lockerQuickAssign"),
       quickRelease: root.querySelector("#lockerQuickRelease"),
-      quickBlock: root.querySelector("#lockerQuickBlock")
+      quickBlock: root.querySelector("#lockerQuickBlock"),
+      localTabs: root.querySelector("#lockerLocalTabs"),
+      viewTabs: root.querySelector("#lockerViewTabs"),
+      viewToggles: Array.from(root.querySelectorAll(".view-tab[data-view]")),
+      localLabel: root.querySelector("#lockerLocalLabel"),
+      areaGrid: root.querySelector("#lockerAreaGrid"),
+      areaListView: root.querySelector("#lockerAreaListView"),
+      assignmentBoard: root.querySelector("#lockerAssignmentBoard"),
+      stateBoard: root.querySelector("#lockerStateBoard")
     };
   }
 
@@ -1267,11 +1768,16 @@
     root.dataset.lockersInit = "true";
     state.active = true;
 
+    state.initialLocal = normalizeLocal(getLocalFromUrl());
+    state.localManual = false;
     cacheDom(root);
+    const savedView = readViewMode();
+    state.viewMode = savedView === "states" ? "states" : "assignments";
+    updateViewModeUI();
     state.collapsedStates = readCollapseState();
-    renderSummary();
-    renderColumns();
-    renderSelected();
+    ensureAreaSelectOptions(state.lockers);
+    ensureLocalSelectOptions(state.lockers);
+    renderAll();
     bindEvents();
     handleHeaderScroll();
     loadLockers();

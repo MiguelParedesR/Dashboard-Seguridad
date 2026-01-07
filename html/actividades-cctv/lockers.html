@@ -47,12 +47,42 @@
 
       <section class="lockers-body">
         <section class="lockers-map">
-          <div class="map-header">
-            <div class="map-title">Vista por estados <span class="map-count" id="lockerMapCount">--</span></div>
+          <div class="local-nav" aria-label="Locales">
+            <div class="local-nav-header">
+              <div>
+                <p class="hero-kicker">Locales</p>
+                <div class="local-title">Local activo <span id="lockerLocalLabel">--</span></div>
+              </div>
+              <div class="local-tabs" id="lockerLocalTabs" role="tablist" aria-label="Lista de locales"></div>
+            </div>
           </div>
-          <div class="map-scroll">
-            <div id="lockerStatusColumns" class="status-columns" role="list"></div>
+
+          <div class="view-switcher">
+            <span class="view-switcher-label">Vista</span>
+            <div class="view-tabs" id="lockerViewTabs" role="group" aria-label="Seleccion de vista">
+              <button class="view-tab is-active" type="button" data-view="assignments" aria-pressed="true">Asignaciones</button>
+              <button class="view-tab" type="button" data-view="states" aria-pressed="false">Estados</button>
+            </div>
           </div>
+
+          <section class="assignment-board" id="lockerAssignmentBoard" aria-label="Asignaciones por area">
+            <div class="area-header">
+              <div>
+                <h2 class="area-title">Asignaciones por area</h2>
+              </div>
+            </div>
+            <div class="area-list-view" id="lockerAreaListView"></div>
+          </section>
+
+          <section class="state-board" id="lockerStateBoard" aria-label="Vista por estados">
+            <div class="map-header">
+              <div class="map-title">Vista por estados <span class="map-count" id="lockerMapCount">--</span></div>
+              <div class="map-hint">Desliza horizontalmente</div>
+            </div>
+            <div class="map-scroll">
+              <div id="lockerStatusColumns" class="status-columns" role="list"></div>
+            </div>
+          </section>
         </section>
 
         <aside class="locker-detail-panel" id="lockerDetailPanel" aria-hidden="true">
@@ -82,6 +112,10 @@
             </div>
 
             <div class="form-grid">
+              <div class="field field-local">
+                <label for="lockerLocal">Local</label>
+                <select id="lockerLocal"></select>
+              </div>
               <div class="field field-group">
                 <label for="lockerGroup">Area</label>
                 <select id="lockerGroup"></select>

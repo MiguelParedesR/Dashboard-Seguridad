@@ -7,6 +7,7 @@
 const $ = (id) => document.getElementById(id);
 let deleteId = null;
 let supabase = null;
+let penalidadesBooting = false;
 
 // Paginación
 let currentPage = 1;
@@ -186,6 +187,10 @@ function bringToFront(el, z = 10000) {
 --------------------------------------------------------------------- */
 
 async function initPenalidades() {
+    const root = $('penalidades-root');
+    if (!root) return;
+    if (root.dataset.penalidadesInit === 'true') return;
+    root.dataset.penalidadesInit = 'true';
     if (!$('formPenalidad') || !$('tablaPenalidades')) {
         return;
     }
@@ -281,6 +286,7 @@ if (document.readyState === 'loading') {
     // Si el script se inyecta después de DOMContentLoaded, inicializa inmediatamente
     initPenalidades();
 }
+document.addEventListener('partial:loaded', initPenalidades);
 
 // =================== UTILS EMPRESA (SINÓNIMOS) ===================
 
