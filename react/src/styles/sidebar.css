@@ -1,0 +1,229 @@
+﻿.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  width: var(--sidebar-width);
+  background: linear-gradient(160deg, #0f172a 0%, #111827 60%, #1f2937 100%);
+  color: #e2e8f0;
+  padding: 22px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  transition: width 0.2s ease, transform 0.3s ease;
+  z-index: 20;
+}
+
+.sidebar::after {
+  content: '';
+  position: absolute;
+  inset: 12px;
+  border-radius: 20px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  pointer-events: none;
+}
+
+.sidebar-brand {
+  position: relative;
+  display: grid;
+  grid-template-columns: 48px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(15, 23, 42, 0.6);
+  z-index: 1;
+}
+
+.brand-mark {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #5eead4, #14b8a6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #0f172a;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  font-family: var(--font-display);
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.brand-title {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.brand-sub {
+  font-size: 0.75rem;
+  color: rgba(226, 232, 240, 0.7);
+}
+
+.collapse-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  border: none;
+  background: rgba(148, 163, 184, 0.12);
+  color: #e2e8f0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.collapse-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #5eead4;
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-right: 6px;
+  overflow-y: auto;
+}
+
+.nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.group-toggle {
+  border: none;
+  background: transparent;
+  color: rgba(226, 232, 240, 0.7);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.7rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.group-chevron {
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid rgba(226, 232, 240, 0.7);
+  border-bottom: 2px solid rgba(226, 232, 240, 0.7);
+  transform: rotate(45deg);
+  transition: transform 0.2s ease;
+}
+
+.group-chevron.open {
+  transform: rotate(225deg);
+}
+
+.group-items {
+  display: grid;
+  gap: 6px;
+  padding-left: 4px;
+  max-height: 500px;
+  transition: max-height 0.2s ease;
+}
+
+.group-items:not(.open) {
+  max-height: 0;
+  overflow: hidden;
+}
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  text-decoration: none;
+  color: rgba(226, 232, 240, 0.85);
+  background: transparent;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.nav-link:hover {
+  background: rgba(15, 118, 110, 0.16);
+  color: #5eead4;
+}
+
+.nav-link.active {
+  background: rgba(94, 234, 212, 0.16);
+  color: #5eead4;
+}
+
+.nav-icon {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+
+.nav-text {
+  font-size: 0.92rem;
+  font-weight: 500;
+}
+
+.mobile-toggle {
+  display: none;
+  position: fixed;
+  bottom: 24px;
+  left: 24px;
+  width: 52px;
+  height: 52px;
+  border-radius: 18px;
+  border: none;
+  background: #0f766e;
+  box-shadow: var(--shadow-lg);
+  cursor: pointer;
+  z-index: 30;
+}
+
+.mobile-line {
+  display: block;
+  width: 20px;
+  height: 2px;
+  margin: 4px auto;
+  background: white;
+}
+
+body.sidebar-collapsed .sidebar {
+  width: var(--sidebar-collapsed);
+}
+
+body.sidebar-collapsed .brand-text,
+body.sidebar-collapsed .nav-text,
+body.sidebar-collapsed .group-label {
+  display: none;
+}
+
+body.sidebar-collapsed .group-toggle {
+  justify-content: center;
+}
+
+@media (max-width: 960px) {
+  .sidebar {
+    transform: translateX(-110%);
+    width: min(86vw, 320px);
+  }
+
+  .sidebar.is-open {
+    transform: translateX(0);
+  }
+
+  .mobile-toggle {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+}

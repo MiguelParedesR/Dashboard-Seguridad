@@ -1,0 +1,36 @@
+﻿.noticias {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.news-list {
+  list-style: none;
+  display: grid;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.news-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+}
+
+.news-list p {
+  margin-top: 6px;
+  color: var(--ink-500);
+}
+
+.news-date {
+  font-size: 0.75rem;
+  color: var(--ink-500);
+}
+
+.muted {
+  color: var(--ink-500);
+}

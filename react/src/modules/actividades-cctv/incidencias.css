@@ -1,0 +1,57 @@
+﻿.incidencias {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.incidencias .muted {
+  color: var(--ink-500);
+}
+
+.form-stack {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.status-grid {
+  display: grid;
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.status-label {
+  font-size: 0.8rem;
+  color: var(--ink-500);
+}
+
+.status-risk {
+  color: var(--brand-600);
+}
+
+.history-list {
+  list-style: none;
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.history-list li {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--surface-300);
+}
+
+.history-time {
+  font-size: 0.85rem;
+  color: var(--ink-500);
+}
+
+@media (max-width: 640px) {
+  .history-list li {
+    grid-template-columns: 1fr;
+  }
+}

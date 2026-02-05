@@ -1,0 +1,214 @@
+﻿@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+:root {
+  color-scheme: light;
+  --font-body: 'Manrope', 'Segoe UI', Tahoma, sans-serif;
+  --font-display: 'Space Grotesk', 'Segoe UI', Tahoma, sans-serif;
+  --bg-900: #0b1120;
+  --bg-800: #111827;
+  --bg-700: #1f2937;
+  --surface-100: #ffffff;
+  --surface-200: #f8fafc;
+  --surface-300: #f1f5f9;
+  --ink-900: #0f172a;
+  --ink-700: #334155;
+  --ink-500: #64748b;
+  --brand-500: #0f766e;
+  --brand-600: #115e59;
+  --brand-300: #5eead4;
+  --accent-500: #f59e0b;
+  --danger-500: #ef4444;
+  --shadow-lg: 0 24px 60px rgba(15, 23, 42, 0.18);
+  --shadow-md: 0 16px 32px rgba(15, 23, 42, 0.12);
+  --radius-xl: 24px;
+  --radius-lg: 16px;
+  --radius-md: 12px;
+  --radius-sm: 10px;
+  --gutter: clamp(16px, 2.2vw, 28px);
+  --sidebar-width: 280px;
+  --sidebar-collapsed: 84px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  min-height: 100%;
+}
+
+body {
+  font-family: var(--font-body);
+  color: var(--ink-900);
+  background: radial-gradient(circle at 20% 20%, rgba(94, 234, 212, 0.25), transparent 40%),
+    radial-gradient(circle at 80% 0%, rgba(59, 130, 246, 0.2), transparent 45%),
+    #e2e8f0;
+  line-height: 1.5;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image: linear-gradient(120deg, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0));
+  opacity: 0.4;
+  z-index: -1;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.app-shell {
+  display: flex;
+  min-height: 100vh;
+  align-items: stretch;
+}
+
+.app-view {
+  flex: 1;
+  padding: var(--gutter);
+  margin-left: var(--sidebar-width);
+  transition: margin-left 0.2s ease;
+}
+
+body.sidebar-collapsed .app-view {
+  margin-left: var(--sidebar-collapsed);
+}
+
+body.sidebar-open .app-view {
+  margin-left: 0;
+}
+
+body.sidebar-open::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  z-index: 15;
+}
+
+body.view-login .sidebar {
+  display: none;
+}
+
+body.view-login .app-view {
+  margin-left: 0;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  color: var(--ink-900);
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.page-title {
+  font-size: clamp(24px, 3vw, 34px);
+  letter-spacing: -0.02em;
+}
+
+.page-subtitle {
+  color: var(--ink-500);
+  margin-top: 6px;
+}
+
+.card {
+  background: var(--surface-100);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  padding: 20px;
+}
+
+.card.soft {
+  background: var(--surface-200);
+  box-shadow: none;
+}
+
+.grid {
+  display: grid;
+  gap: 20px;
+}
+
+.grid.cols-2 {
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.grid.cols-3 {
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.grid.cols-4 {
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: none;
+  background: var(--brand-500);
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.btn.ghost {
+  background: transparent;
+  color: var(--brand-600);
+  border: 1px solid rgba(15, 118, 110, 0.25);
+  box-shadow: none;
+}
+
+.input,
+select,
+textarea {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  padding: 10px 12px;
+  font-family: var(--font-body);
+  color: var(--ink-900);
+  background: #ffffff;
+}
+
+label {
+  font-size: 0.9rem;
+  color: var(--ink-700);
+}
+
+.muted {
+  color: var(--ink-500);
+}
+
+@media (max-width: 960px) {
+  .app-view {
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+}
