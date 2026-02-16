@@ -1,0 +1,21 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Dashboard localhost (Edge)",
+      "type": "pwa-msedge",
+      "request": "launch",
+      "url": "http://localhost:5501",
+      "webRoot": "${workspaceFolder}/dist",
+      "preLaunchTask": "Dashboard: Servir dist en localhost"
+    },
+    {
+      "name": "Dashboard localhost (Chrome)",
+      "type": "pwa-chrome",
+      "request": "launch",
+      "url": "http://localhost:5501",
+      "webRoot": "${workspaceFolder}/dist",
+      "preLaunchTask": "Dashboard: Servir dist en localhost"
+    }
+  ]
+}

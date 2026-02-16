@@ -1,0 +1,294 @@
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&display=swap');
+
+.colaborador-page {
+  --colab-navy: #0b1b34;
+  --colab-ink: #14253e;
+  --colab-muted: #51627d;
+  --colab-line: #d8e0ec;
+  --colab-bg: #f4f7fb;
+  --colab-card: #ffffff;
+  --colab-accent: #0d7e75;
+  --colab-accent-strong: #0a6962;
+
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: clamp(18px, 3vw, 36px) 16px 34px;
+  font-family: 'Sora', 'Trebuchet MS', sans-serif;
+  color: var(--colab-ink);
+  background:
+    radial-gradient(1150px 460px at 8% -10%, rgba(13, 126, 117, 0.14), transparent 62%),
+    radial-gradient(950px 420px at 92% -12%, rgba(11, 27, 52, 0.13), transparent 64%),
+    linear-gradient(180deg, #f9fbfe 0%, #eef4fa 100%);
+}
+
+.colaborador-card {
+  width: min(580px, 100%);
+  background: var(--colab-card);
+  border: 1px solid var(--colab-line);
+  border-radius: 24px;
+  padding: clamp(20px, 2.5vw, 30px);
+  box-shadow:
+    0 24px 48px rgba(13, 28, 54, 0.11),
+    0 2px 0 rgba(255, 255, 255, 0.8) inset;
+}
+
+.colaborador-card-login {
+  width: min(520px, 100%);
+}
+
+.colaborador-card-home {
+  width: min(520px, 100%);
+}
+
+.colaborador-card-flow {
+  width: min(900px, 100%);
+}
+
+.colaborador-kicker {
+  display: inline-flex;
+  margin-bottom: 14px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(13, 126, 117, 0.12);
+  color: #0a5f58;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.colaborador-card h1 {
+  margin: 0 0 8px;
+  font-size: clamp(1.58rem, 2.8vw, 2.08rem);
+  letter-spacing: -0.025em;
+  color: var(--colab-navy);
+}
+
+.colaborador-card p {
+  margin: 0 0 14px;
+  color: var(--colab-muted);
+  line-height: 1.5;
+}
+
+.colaborador-meta {
+  margin: 2px 0;
+  padding: 10px 12px;
+  border: 1px solid #dce4ef;
+  border-left: 4px solid #0d7e75;
+  border-radius: 12px;
+  background: #f8fbff;
+}
+
+.colaborador-meta p {
+  margin: 0;
+  color: #435675;
+  font-size: 0.9rem;
+}
+
+.colaborador-form {
+  display: grid;
+  gap: 14px;
+}
+
+.colaborador-form label {
+  display: grid;
+  gap: 8px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #193252;
+}
+
+.colaborador-form input {
+  width: 100%;
+  border: 1px solid #ced9e8;
+  border-radius: 12px;
+  padding: 12px 13px;
+  font: inherit;
+  color: #10223b;
+  background: #f8fbff;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease;
+}
+
+.colaborador-form input::placeholder {
+  color: #8797ae;
+}
+
+.colaborador-form input:focus {
+  outline: none;
+  border-color: #0d7e75;
+  box-shadow: 0 0 0 4px rgba(13, 126, 117, 0.16);
+  background: #ffffff;
+}
+
+.colaborador-button {
+  border: none;
+  border-radius: 14px;
+  min-height: 54px;
+  padding: 12px 18px;
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #ffffff;
+  background: linear-gradient(135deg, var(--colab-accent), #0f9388);
+  cursor: pointer;
+  transition: transform 0.14s ease, box-shadow 0.14s ease, opacity 0.14s ease, filter 0.14s ease;
+}
+
+.colaborador-button:hover {
+  transform: translateY(-1px);
+  filter: saturate(1.04);
+  box-shadow: 0 14px 28px rgba(13, 126, 117, 0.3);
+}
+
+.colaborador-button:active {
+  transform: translateY(0);
+}
+
+.colaborador-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.74;
+  box-shadow: none;
+  transform: none;
+}
+
+.colaborador-button.is-secondary {
+  color: #133255;
+  background: #e7eef7;
+}
+
+.colaborador-actions {
+  display: grid;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.colaborador-actions .colaborador-button {
+  min-height: 62px;
+  text-align: center;
+}
+
+.colaborador-error {
+  margin: 0;
+  color: #c72b35;
+  font-weight: 700;
+}
+
+.colaborador-success {
+  margin: 0;
+  color: var(--colab-accent-strong);
+  font-weight: 700;
+}
+
+.colaborador-subtle {
+  margin: 0;
+  color: #5e7392;
+  font-size: 0.9rem;
+}
+
+.colaborador-grid {
+  margin-top: 10px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+
+.locker-card {
+  border: 1px solid #d2ddea;
+  border-radius: 14px;
+  padding: 14px;
+  text-align: left;
+  color: #183658;
+  background:
+    linear-gradient(180deg, #ffffff, #f8fbff);
+  cursor: pointer;
+  transition: transform 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease;
+}
+
+.locker-card:hover {
+  transform: translateY(-2px);
+  border-color: #0d7e75;
+  box-shadow: 0 15px 30px rgba(14, 34, 63, 0.11);
+}
+
+.locker-card strong {
+  display: block;
+  margin-bottom: 4px;
+  color: #0d2a48;
+}
+
+.colaborador-file {
+  margin-top: 12px;
+  padding-top: 16px;
+  border-top: 1px dashed #cfd8e5;
+}
+
+.camera-guide {
+  border: 1px solid #d4deea;
+  border-radius: 14px;
+  padding: 10px;
+  background: #f5f9ff;
+}
+
+.camera-guide-frame {
+  min-height: 140px;
+  border-radius: 11px;
+  border: 2px dashed rgba(13, 126, 117, 0.62);
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: 10px;
+  color: #0f2d4d;
+  font-weight: 700;
+  background:
+    linear-gradient(90deg, rgba(13, 126, 117, 0.1), rgba(13, 126, 117, 0.1)) center / 100% 1px no-repeat,
+    linear-gradient(180deg, rgba(13, 126, 117, 0.1), rgba(13, 126, 117, 0.1)) center / 1px 100% no-repeat,
+    #ffffff;
+}
+
+.colaborador-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 18px;
+  background: rgba(12, 25, 46, 0.5);
+}
+
+.colaborador-modal {
+  width: min(520px, 100%);
+  border-radius: 18px;
+  border: 1px solid #d8e1ec;
+  padding: 20px;
+  background: #ffffff;
+  box-shadow: 0 26px 52px rgba(10, 22, 41, 0.28);
+}
+
+.colaborador-modal p {
+  margin-bottom: 14px;
+  color: #274465;
+}
+
+.colaborador-modal-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(120px, 1fr));
+  gap: 10px;
+}
+
+@media (max-width: 640px) {
+  .colaborador-page {
+    padding-top: 14px;
+  }
+
+  .colaborador-card {
+    border-radius: 18px;
+    padding: 16px;
+  }
+
+  .colaborador-button {
+    min-height: 52px;
+  }
+}

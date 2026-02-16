@@ -93,6 +93,13 @@
   overflow-y: auto;
 }
 
+.sidebar-logout {
+  width: 100%;
+  margin-top: auto;
+  position: relative;
+  z-index: 1;
+}
+
 .nav-group {
   display: flex;
   flex-direction: column;
@@ -208,6 +215,10 @@ body.sidebar-collapsed .group-label {
 
 body.sidebar-collapsed .group-toggle {
   justify-content: center;
+}
+
+body.sidebar-collapsed .sidebar-logout {
+  display: none;
 }
 
 @media (max-width: 960px) {

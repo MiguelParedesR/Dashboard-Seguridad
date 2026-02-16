@@ -1,11 +1,21 @@
-﻿const projectName = 'Dashboard Seguridad TPP';
+const projectName = 'Dashboard Seguridad TPP';
 const version = '2.0.0';
-const SUPABASE_SDK_URL = 'https://unpkg.com/@supabase/supabase-js@2.45.4/dist/umd/supabase.js';
 
-const PRIMARY_URL = 'https://qjefbngewwthawycvutl.supabase.co';
-const PRIMARY_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFqZWZibmdld3d0aGF3eWN2dXRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDYxMjA2MTUsImV4cCI6MjA2MTY5NjYxNX0.q4J3bF6oC7x9dhW5cwHr-qtqSSqI_8ju7fHvyfO_Sh0';
-const PENALIDADES_URL = 'https://iogbjnvgkgchicepnzjq.supabase.co';
-const PENALIDADES_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlvZ2JqbnZna2djaGljZXBuempxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUzODY2NzksImV4cCI6MjA3MDk2MjY3OX0.wUJULfOQf8BBjW7o88i45dQ8qZGBwX2TI0iqZ5walkc';
+const ENV = import.meta.env || {};
+
+function readEnv(name, fallback = '') {
+  const value = ENV[name];
+  if (value === undefined || value === null) return fallback;
+  return String(value).trim();
+}
+
+const SUPABASE_SDK_URL =
+  readEnv('VITE_SUPABASE_SDK_URL') || 'https://unpkg.com/@supabase/supabase-js@2.45.4/dist/umd/supabase.js';
+
+const PRIMARY_URL = readEnv('VITE_SUPABASE_LOCKERS_URL') || readEnv('VITE_SUPABASE_URL');
+const PRIMARY_ANON_KEY = readEnv('VITE_SUPABASE_LOCKERS_ANON_KEY') || readEnv('VITE_SUPABASE_ANON_KEY');
+const PENALIDADES_URL = readEnv('VITE_SUPABASE_PENALIDADES_URL') || PRIMARY_URL;
+const PENALIDADES_ANON_KEY = readEnv('VITE_SUPABASE_PENALIDADES_ANON_KEY') || PRIMARY_ANON_KEY;
 
 const DATABASES = [
   {
@@ -52,11 +62,13 @@ const TABLE_DB_MAP = {
   tardanzas_importadas: 'PENALIDADES',
   lockers: 'LOCKERS',
   usuarios: 'LOCKERS',
-  operadores: 'LOCKERS'
+  operadores: 'LOCKERS',
+  v_operadores_cctv: 'LOCKERS'
 };
 
 const CLIENTS = window.__SUPABASE_CLIENTS || (window.__SUPABASE_CLIENTS = {});
 let sdkWarned = false;
+const dbConfigWarnings = new Set();
 
 function getSdk() {
   if (window.supabaseSDK && typeof window.supabaseSDK.createClient === 'function') {
@@ -67,6 +79,15 @@ function getSdk() {
     return window.supabaseSDK;
   }
   return null;
+}
+
+function warnMissingDbConfig(dbKey) {
+  const resolved = normalizeDbKey(dbKey) || dbKey;
+  if (!resolved || dbConfigWarnings.has(resolved)) return;
+  const db = DATABASES_BY_KEY[resolved];
+  if (db && db.url && db.anonKey) return;
+  dbConfigWarnings.add(resolved);
+  console.warn(`[Supabase] missing configuration for database "${resolved}". Check VITE_SUPABASE_* variables.`);
 }
 
 function loadSupabaseSdk() {
@@ -129,7 +150,10 @@ function buildStorageKey(db) {
 
 function createClient(dbKey) {
   const db = getDbConfig(dbKey);
-  if (!db || !db.url || !db.anonKey) return null;
+  if (!db || !db.url || !db.anonKey) {
+    warnMissingDbConfig(dbKey);
+    return null;
+  }
   const clientKey = getClientKey(db);
   if (CLIENTS[clientKey]) return CLIENTS[clientKey];
   const sdk = getSdk();
@@ -160,7 +184,10 @@ async function listTables(dbKey, options = {}) {
   if (!resolved) return null;
   if (!options.force && TABLE_LIST_CACHE[resolved]) return TABLE_LIST_CACHE[resolved];
   const db = getDbConfig(resolved);
-  if (!db || !db.url || !db.anonKey) return null;
+  if (!db || !db.url || !db.anonKey) {
+    warnMissingDbConfig(resolved);
+    return null;
+  }
   try {
     const base = String(db.url).replace(/\/$/, '');
     const resp = await fetch(`${base}/rest/v1/`, {

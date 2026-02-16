@@ -1,0 +1,194 @@
+body.view-usuario-login .sidebar {
+  display: none;
+}
+
+body.view-usuario-login .app-view {
+  margin-left: 0;
+  padding: 0;
+}
+
+.usuario-login-root {
+  min-height: 100vh;
+  position: relative;
+  display: grid;
+  place-items: center;
+  padding: clamp(16px, 4vw, 28px);
+  background: radial-gradient(circle at 15% 15%, rgba(14, 165, 233, 0.2), transparent 38%),
+    radial-gradient(circle at 82% 22%, rgba(16, 185, 129, 0.25), transparent 42%),
+    radial-gradient(circle at 50% 85%, rgba(15, 118, 110, 0.17), transparent 45%),
+    #edf2f7;
+  overflow: hidden;
+}
+
+.usuario-login-bg {
+  position: absolute;
+  inset: -25%;
+  background: conic-gradient(from 110deg, rgba(14, 165, 233, 0.08), rgba(15, 118, 110, 0.1), rgba(59, 130, 246, 0.08), rgba(14, 165, 233, 0.08));
+  filter: blur(38px);
+  animation: usuarioSpin 18s linear infinite;
+  pointer-events: none;
+}
+
+.usuario-login-shell {
+  width: min(740px, 100%);
+  position: relative;
+  z-index: 1;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 24px;
+  box-shadow: 0 24px 52px rgba(15, 23, 42, 0.12);
+  padding: clamp(18px, 3vw, 30px);
+  display: grid;
+  gap: 20px;
+  backdrop-filter: blur(4px);
+  animation: usuarioRise 0.55s ease both;
+}
+
+.usuario-login-header h1 {
+  margin: 0;
+  font-size: clamp(26px, 3vw, 34px);
+}
+
+.usuario-login-header p {
+  margin: 8px 0 0;
+  color: #475569;
+}
+
+.usuario-login-role-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.usuario-role-card {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 16px;
+  background: linear-gradient(145deg, #f8fafc, #ffffff);
+  text-align: left;
+  padding: 14px 14px 12px;
+  display: grid;
+  gap: 6px;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.usuario-role-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.1);
+}
+
+.usuario-role-card.is-active {
+  border-color: rgba(15, 118, 110, 0.48);
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.16);
+}
+
+.usuario-role-badge {
+  display: inline-flex;
+  width: fit-content;
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #115e59;
+  background: rgba(15, 118, 110, 0.14);
+}
+
+.usuario-role-card strong {
+  font-size: 1.02rem;
+  color: #0f172a;
+}
+
+.usuario-role-card small {
+  color: #64748b;
+  line-height: 1.35;
+}
+
+.usuario-login-form {
+  display: grid;
+  gap: 12px;
+}
+
+.usuario-login-form label {
+  display: grid;
+  gap: 6px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.usuario-login-form select,
+.usuario-login-form input {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: #ffffff;
+  padding: 10px 12px;
+  font-size: 0.96rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.usuario-login-form select:focus,
+.usuario-login-form input:focus {
+  border-color: rgba(15, 118, 110, 0.6);
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.16);
+  outline: none;
+}
+
+.usuario-login-error {
+  margin: 0;
+  border-radius: 10px;
+  padding: 10px 12px;
+  color: #b91c1c;
+  background: rgba(220, 38, 38, 0.1);
+  font-weight: 600;
+}
+
+.usuario-login-submit {
+  border: none;
+  border-radius: 12px;
+  padding: 11px 14px;
+  font-weight: 700;
+  color: #ffffff;
+  background: linear-gradient(140deg, #0f766e, #0f766e 45%, #0ea5e9);
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.usuario-login-submit:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 20px rgba(15, 118, 110, 0.25);
+}
+
+.usuario-login-submit:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+@keyframes usuarioRise {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes usuarioSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 700px) {
+  .usuario-login-role-grid {
+    grid-template-columns: 1fr;
+  }
+}
