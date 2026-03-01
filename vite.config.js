@@ -6,7 +6,9 @@ const REPO_NAME =
   process.env.VITE_GH_PAGES_REPO ||
   'Dashboard-Seguridad';
 
-const BASE_PATH = process.env.NODE_ENV === 'production' ? `/${REPO_NAME}/` : '/';
+// Use a relative base for production builds so GitHub Pages serves assets
+// correctly regardless of repo path. Preserve '/' for dev server.
+const BASE_PATH = process.env.NODE_ENV === 'production' ? './' : '/';
 
 export default defineConfig({
   root: 'react',
