@@ -87,6 +87,7 @@
   let scrollTicking = false;
 
   const MODULE_KEY = "lockers";
+  const LOCKERS_READ_SOURCES = ["v_lockers_actual", "vw_locker_estado_general", "lockers"];
 
   function resolveDbKey() {
     return window.CONFIG?.SUPABASE?.resolveDbKeyForModule?.(MODULE_KEY) || "LOCKERS";
@@ -102,6 +103,40 @@
     const waiter = window.CONFIG?.SUPABASE?.waitForClient;
     if (typeof waiter !== "function") return Promise.resolve(null);
     return waiter(dbKey, { maxAttempts, waitMs });
+  }
+
+  function isMissingRelationError(error) {
+    if (!error) return false;
+    const message = String(error.message || "").toLowerCase();
+    const code = String(error.code || "");
+    const status = Number(error.status || error.statusCode || 0);
+    return code === "42P01" || status === 404 || message.includes("relation") || message.includes("does not exist");
+  }
+
+  async function fetchLockersRows(supabase) {
+    let lastError = null;
+
+    for (const source of LOCKERS_READ_SOURCES) {
+      const { data, error } = await supabase.from(source).select("*").order("codigo", { ascending: true });
+      if (!error) {
+        return {
+          data: Array.isArray(data) ? data : [],
+          source,
+          error: null
+        };
+      }
+
+      lastError = error;
+      if (!isMissingRelationError(error)) {
+        break;
+      }
+    }
+
+    return {
+      data: [],
+      source: null,
+      error: lastError
+    };
   }
 
   function normalizeEstado(value) {
@@ -1614,10 +1649,7 @@
       return;
     }
 
-    const { data, error } = await supabase
-      .from("lockers")
-      .select("*")
-      .order("codigo", { ascending: true });
+    const { data, error, source } = await fetchLockersRows(supabase);
 
     if (error) {
       console.error(error);
@@ -1644,6 +1676,9 @@
       state.loading = false;
       if (!state.channel || force) {
         subscribeToRealtime(supabase);
+      }
+      if (source && source !== "lockers") {
+        console.info(`[lockers] lectura desde ${source}`);
       }
       setStatus("Datos actualizados.", "success");
     }
