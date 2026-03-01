@@ -23,22 +23,7 @@
         "runOn": "folderOpen",
         "instanceLimit": 1
       },
-      "isBackground": true,
-      "problemMatcher": [
-        {
-          "pattern": [
-            {
-              "regexp": "^(.*)$",
-              "message": 1
-            }
-          ],
-          "background": {
-            "activeOnStart": true,
-            "beginsPattern": "^Servidor listo en",
-            "endsPattern": "^Servidor listo en"
-          }
-        }
-      ]
+      "isBackground": true
     }
   ]
 }

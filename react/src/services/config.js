@@ -2,11 +2,20 @@ const projectName = 'Dashboard Seguridad TPP';
 const version = '2.0.0';
 
 const ENV = import.meta.env || {};
+const PLACEHOLDER_ENV_VALUES = new Set([
+  '...',
+  'your-lockers-anon-key',
+  'https://your-lockers-project.supabase.co',
+  'your-supabase-anon-key',
+  'https://your-supabase-project.supabase.co'
+]);
 
 function readEnv(name, fallback = '') {
   const value = ENV[name];
   if (value === undefined || value === null) return fallback;
-  return String(value).trim();
+  const normalized = String(value).trim();
+  if (!normalized || PLACEHOLDER_ENV_VALUES.has(normalized)) return fallback;
+  return normalized;
 }
 
 const SUPABASE_SDK_URL =
@@ -81,13 +90,23 @@ function getSdk() {
   return null;
 }
 
+function isValidUrl(value) {
+  if (!value) return false;
+  try {
+    const parsed = new URL(String(value));
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:';
+  } catch (err) {
+    return false;
+  }
+}
+
 function warnMissingDbConfig(dbKey) {
   const resolved = normalizeDbKey(dbKey) || dbKey;
   if (!resolved || dbConfigWarnings.has(resolved)) return;
   const db = DATABASES_BY_KEY[resolved];
-  if (db && db.url && db.anonKey) return;
+  if (db && db.url && db.anonKey && isValidUrl(db.url)) return;
   dbConfigWarnings.add(resolved);
-  console.warn(`[Supabase] missing configuration for database "${resolved}". Check VITE_SUPABASE_* variables.`);
+  console.warn(`[Supabase] missing or invalid configuration for database "${resolved}". Check VITE_SUPABASE_* variables.`);
 }
 
 function loadSupabaseSdk() {
@@ -150,7 +169,7 @@ function buildStorageKey(db) {
 
 function createClient(dbKey) {
   const db = getDbConfig(dbKey);
-  if (!db || !db.url || !db.anonKey) {
+  if (!db || !db.url || !db.anonKey || !isValidUrl(db.url)) {
     warnMissingDbConfig(dbKey);
     return null;
   }
@@ -158,14 +177,19 @@ function createClient(dbKey) {
   if (CLIENTS[clientKey]) return CLIENTS[clientKey];
   const sdk = getSdk();
   if (!sdk) return null;
-  CLIENTS[clientKey] = sdk.createClient(db.url, db.anonKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-      detectSessionInUrl: false,
-      storageKey: buildStorageKey(db)
-    }
-  });
+  try {
+    CLIENTS[clientKey] = sdk.createClient(db.url, db.anonKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+        storageKey: buildStorageKey(db)
+      }
+    });
+  } catch (err) {
+    warnMissingDbConfig(dbKey);
+    return null;
+  }
   return CLIENTS[clientKey];
 }
 
@@ -184,7 +208,7 @@ async function listTables(dbKey, options = {}) {
   if (!resolved) return null;
   if (!options.force && TABLE_LIST_CACHE[resolved]) return TABLE_LIST_CACHE[resolved];
   const db = getDbConfig(resolved);
-  if (!db || !db.url || !db.anonKey) {
+  if (!db || !db.url || !db.anonKey || !isValidUrl(db.url)) {
     warnMissingDbConfig(resolved);
     return null;
   }

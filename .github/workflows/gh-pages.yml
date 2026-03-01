@@ -27,3 +27,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./dist
+          keep_files: false
+          allow_empty_commit: true
+          user_name: github-actions
+          user_email: github-actions@users.noreply.github.com
