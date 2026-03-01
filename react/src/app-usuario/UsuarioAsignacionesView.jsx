@@ -10,7 +10,7 @@ import {
 } from './usuarioApi.js';
 import './usuario.css';
 
-export default function UsuarioAsignacionesView() {
+export default function UsuarioAsignacionesView({ embedded = false }) {
   const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
@@ -21,6 +21,7 @@ export default function UsuarioAsignacionesView() {
   const [movimientos, setMovimientos] = useState([]);
   const [incidencias, setIncidencias] = useState([]);
   const [detailLoading, setDetailLoading] = useState(false);
+  const ContainerTag = embedded ? 'section' : 'main';
 
   const loadAsignaciones = useCallback(async () => {
     setLoading(true);
@@ -150,7 +151,7 @@ export default function UsuarioAsignacionesView() {
   };
 
   return (
-    <main className="usuario-page">
+    <ContainerTag className={`usuario-page${embedded ? ' usuario-page--embedded' : ''}`}>
       <section className="usuario-card">
         <div className="usuario-header">
           <div>
@@ -292,6 +293,6 @@ export default function UsuarioAsignacionesView() {
           )}
         </aside>
       </section>
-    </main>
+    </ContainerTag>
   );
 }

@@ -2,9 +2,7 @@ import { createHashRouter, Navigate, Outlet } from 'react-router-dom';
 import MainLayout from '../layout/MainLayout.jsx';
 import ProtectedRoute from './ProtectedRoute.jsx';
 import UsuarioLoginView from '../app-usuario/UsuarioLoginView.jsx';
-import UsuarioAsignacionesView from '../app-usuario/UsuarioAsignacionesView.jsx';
 import UsuarioEntregaView from '../app-usuario/UsuarioEntregaView.jsx';
-import UsuarioHistorialView from '../app-usuario/UsuarioHistorialView.jsx';
 import UsuarioSolicitudesView from '../app-usuario/UsuarioSolicitudesView.jsx';
 import DevolverLocker from '../app-colaborador/DevolverLocker.jsx';
 import HomeColaborador from '../app-colaborador/HomeColaborador.jsx';
@@ -64,11 +62,11 @@ const router = createHashRouter([
       },
       {
         path: 'asignaciones',
-        element: <Navigate to="/lockers/asignaciones" replace />
+        element: <Navigate to="/lockers/vista?panel=asignaciones" replace />
       },
       {
         path: 'historial',
-        element: <Navigate to="/lockers/historial" replace />
+        element: <Navigate to="/lockers/vista?panel=historial" replace />
       },
       {
         path: '*',
@@ -150,14 +148,6 @@ const router = createHashRouter([
           {
             path: 'vista',
             element: <LockersView />
-          },
-          {
-            path: 'asignaciones',
-            element: <UsuarioAsignacionesView />
-          },
-          {
-            path: 'historial',
-            element: <UsuarioHistorialView />
           }
         ]
       },

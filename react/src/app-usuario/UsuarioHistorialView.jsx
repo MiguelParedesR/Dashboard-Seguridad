@@ -28,7 +28,7 @@ async function fetchMovimientos(supabase) {
   return fallback.data || [];
 }
 
-export default function UsuarioHistorialView() {
+export default function UsuarioHistorialView({ embedded = false }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [records, setRecords] = useState([]);
@@ -38,6 +38,7 @@ export default function UsuarioHistorialView() {
     tipo: 'ALL',
     fecha: ''
   });
+  const ContainerTag = embedded ? 'section' : 'main';
 
   const loadHistorial = useCallback(async () => {
     setLoading(true);
@@ -116,7 +117,7 @@ export default function UsuarioHistorialView() {
   );
 
   return (
-    <main className="usuario-page">
+    <ContainerTag className={`usuario-page${embedded ? ' usuario-page--embedded' : ''}`}>
       <section className="usuario-card">
         <div className="usuario-header">
           <div>
@@ -235,6 +236,6 @@ export default function UsuarioHistorialView() {
           </div>
         )}
       </section>
-    </main>
+    </ContainerTag>
   );
 }

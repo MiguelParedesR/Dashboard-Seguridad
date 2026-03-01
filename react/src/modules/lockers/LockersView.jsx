@@ -1,7 +1,34 @@
-﻿import { useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
+import UsuarioAsignacionesView from '../../app-usuario/UsuarioAsignacionesView.jsx';
+import UsuarioHistorialView from '../../app-usuario/UsuarioHistorialView.jsx';
 import './lockers.css';
 
+const INTEGRATED_TABS = ['asignaciones', 'historial'];
+
+function resolveIntegratedTab(state, search) {
+  const fromState = String(state?.lockerTab || '')
+    .trim()
+    .toLowerCase();
+  if (INTEGRATED_TABS.includes(fromState)) return fromState;
+
+  const searchParams = new URLSearchParams(search || '');
+  const fromQuery = String(searchParams.get('panel') || '')
+    .trim()
+    .toLowerCase();
+  if (INTEGRATED_TABS.includes(fromQuery)) return fromQuery;
+
+  return 'asignaciones';
+}
+
 export default function LockersView() {
+  const location = useLocation();
+  const initialIntegratedTab = useMemo(
+    () => resolveIntegratedTab(location.state, location.search),
+    [location.search, location.state]
+  );
+  const [integratedTab, setIntegratedTab] = useState(initialIntegratedTab);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -25,6 +52,10 @@ export default function LockersView() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    setIntegratedTab(initialIntegratedTab);
+  }, [initialIntegratedTab]);
 
   return (
     <main id="main-content" className="lockers-view" data-lockers-view>
@@ -170,6 +201,39 @@ export default function LockersView() {
               </div>
             </div>
           </aside>
+        </section>
+
+        <section className="lockers-integrated" aria-label="Panel operativo integrado">
+          <div className="lockers-integrated-header">
+            <div>
+              <p className="hero-kicker">Operaciones integradas</p>
+              <h2>Asignaciones e historial en Vista General</h2>
+            </div>
+            <div className="lockers-integrated-tabs" role="tablist" aria-label="Panel integrado de lockers">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={integratedTab === 'asignaciones'}
+                className={`lockers-integrated-tab ${integratedTab === 'asignaciones' ? 'is-active' : ''}`}
+                onClick={() => setIntegratedTab('asignaciones')}
+              >
+                Asignaciones
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={integratedTab === 'historial'}
+                className={`lockers-integrated-tab ${integratedTab === 'historial' ? 'is-active' : ''}`}
+                onClick={() => setIntegratedTab('historial')}
+              >
+                Historial
+              </button>
+            </div>
+          </div>
+
+          <div className="lockers-integrated-content">
+            {integratedTab === 'asignaciones' ? <UsuarioAsignacionesView embedded /> : <UsuarioHistorialView embedded />}
+          </div>
         </section>
       </div>
 

@@ -1185,10 +1185,20 @@
       .update(payload)
       .eq("id", id)
       .select("*")
-      .single();
+      .maybeSingle();
 
     if (error) {
       setStatus(`Error al guardar: ${error.message || error}`, "error");
+      state.loadingColumns = new Set();
+      renderColumns();
+      return null;
+    }
+
+    if (!data) {
+      setStatus(
+        "No se pudo guardar: el rol actual no tiene permiso de actualizacion sobre lockers (RLS).",
+        "error"
+      );
       state.loadingColumns = new Set();
       renderColumns();
       return null;

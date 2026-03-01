@@ -121,9 +121,12 @@ export default function UsuarioEntregaView() {
 
       if (solicitudError) throw solicitudError;
 
-      navigate('/lockers/asignaciones', {
+      navigate('/lockers/vista?panel=asignaciones', {
         replace: true,
-        state: { successMessage: 'Entrega registrada y solicitud marcada como ASIGNADA.' }
+        state: {
+          lockerTab: 'asignaciones',
+          successMessage: 'Entrega registrada y solicitud marcada como ASIGNADA.'
+        }
       });
     } catch (err) {
       setError(err?.message || 'No se pudo confirmar la entrega.');

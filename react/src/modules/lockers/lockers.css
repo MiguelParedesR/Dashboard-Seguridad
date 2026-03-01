@@ -270,6 +270,73 @@
   gap: 12px;
 }
 
+.lockers-integrated {
+  margin-top: 18px;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.06);
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+}
+
+.lockers-integrated-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.lockers-integrated-header h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.lockers-integrated-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.06);
+}
+
+.lockers-integrated-tab {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 6px 11px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.lockers-integrated-tab.is-active {
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.lockers-integrated-tab:focus-visible {
+  outline: 2px solid rgba(11, 132, 243, 0.6);
+  outline-offset: 2px;
+}
+
+.lockers-integrated-content .usuario-page--embedded {
+  gap: 12px;
+}
+
+.lockers-integrated-content .usuario-page--embedded .usuario-card {
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.lockers-integrated-content .usuario-page--embedded .usuario-panel {
+  position: static;
+}
+
 .view-switcher {
   display: flex;
   align-items: center;
@@ -1415,6 +1482,15 @@
 @media (max-width: 720px) {
   .lockers-view {
     padding: 18px;
+  }
+
+  .lockers-integrated-header {
+    align-items: flex-start;
+  }
+
+  .lockers-integrated-tabs {
+    width: 100%;
+    justify-content: flex-start;
   }
 
   .status-column {
