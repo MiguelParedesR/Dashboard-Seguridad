@@ -16,12 +16,12 @@ export default function ProtectedRoute({ allowedRoles = null, children }) {
   const session = getAuthSession();
 
   if (!session) {
-    return <Navigate to="/usuario/login" replace state={{ from: location.pathname }} />;
+    return <Navigate to="/usuario/login" replace />;
   }
 
   const role = normalizeAuthRole(session.role);
-  if (!role) {
-    return <Navigate to="/usuario/login" replace state={{ from: location.pathname }} />;
+  if (!role || !session.user?.id) {
+    return <Navigate to="/usuario/login" replace />;
   }
 
   const roleRules = normalizeAllowedRoles(allowedRoles);

@@ -4,6 +4,10 @@ import './services/config.js';
 import './styles/app.css';
 import App from './app/App.jsx';
 
+if (typeof window !== 'undefined') {
+  sessionStorage.removeItem('app-usuario:session');
+}
+
 const container = document.getElementById('root');
 if (container) {
   createRoot(container).render(<App />);

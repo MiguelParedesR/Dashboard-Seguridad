@@ -2,7 +2,6 @@ import { createHashRouter, Navigate, Outlet } from 'react-router-dom';
 import MainLayout from '../layout/MainLayout.jsx';
 import ProtectedRoute from './ProtectedRoute.jsx';
 import UsuarioLoginView from '../app-usuario/UsuarioLoginView.jsx';
-import { UsuarioSessionProvider } from '../app-usuario/context/UsuarioSessionContext.jsx';
 import UsuarioAsignacionesView from '../app-usuario/UsuarioAsignacionesView.jsx';
 import UsuarioEntregaView from '../app-usuario/UsuarioEntregaView.jsx';
 import UsuarioHistorialView from '../app-usuario/UsuarioHistorialView.jsx';
@@ -41,11 +40,7 @@ const router = createHashRouter([
   },
   {
     path: '/usuario',
-    element: (
-      <UsuarioSessionProvider>
-        <Outlet />
-      </UsuarioSessionProvider>
-    ),
+    element: <Outlet />,
     children: [
       {
         index: true,

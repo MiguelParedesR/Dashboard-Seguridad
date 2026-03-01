@@ -1,9 +1,10 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
-import { useUsuarioSession } from './context/UsuarioSessionContext.jsx';
+import { getAuthSession } from '../services/sessionAuth.js';
 
 export default function ProtectedUsuarioRoute() {
   const location = useLocation();
-  const { isAuthenticated } = useUsuarioSession();
+  const session = getAuthSession();
+  const isAuthenticated = Boolean(session?.user?.id && session?.role);
 
   if (!isAuthenticated) {
     return <Navigate to="/usuario/login" replace state={{ from: location.pathname }} />;

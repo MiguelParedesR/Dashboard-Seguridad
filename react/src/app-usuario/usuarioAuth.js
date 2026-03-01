@@ -1,7 +1,3 @@
-import { clearAuthSession, getAuthSession, normalizeAuthRole, setAuthSession } from '../services/sessionAuth.js';
-
-export const USUARIO_SESSION_KEY = 'dashboard:auth:session';
-
 const ROLE_ALIAS = {
   admin: 'admin',
   administrador: 'admin',
@@ -58,55 +54,4 @@ export function mapUsuarioRow(row) {
 export function matchesProfile(row, profile) {
   const mapped = mapUsuarioRow(row);
   return mapped.activo && mapped.profile === normalizeProfile(profile);
-}
-
-export function normalizeUsuarioSession(input) {
-  if (!input || typeof input !== 'object') return null;
-  const id = input.id ?? input.usuario_id;
-  const profile = normalizeProfile(input.profile || input.rol || input.role);
-  if (!id || !profile) return null;
-
-  return {
-    id,
-    nombre: sanitizeText(input.nombre),
-    dni: normalizeDni(input.dni),
-    profile
-  };
-}
-
-export function readUsuarioSession() {
-  const session = getAuthSession();
-  if (!session?.user) return null;
-
-  return normalizeUsuarioSession({
-    id: session.user.id || session.user.usuario_id,
-    nombre: session.user.nombre,
-    dni: session.user.dni,
-    profile: normalizeAuthRole(session.role)
-  });
-}
-
-export function writeUsuarioSession(session) {
-  const normalized = normalizeUsuarioSession(session);
-  if (!normalized) {
-    clearAuthSession();
-    return null;
-  }
-
-  const role = normalizeAuthRole(normalized.profile);
-  setAuthSession({
-    role,
-    user: {
-      id: normalized.id,
-      nombre: normalized.nombre,
-      dni: normalized.dni,
-      role
-    }
-  });
-
-  return normalized;
-}
-
-export function clearUsuarioSessionStorage() {
-  clearAuthSession();
 }

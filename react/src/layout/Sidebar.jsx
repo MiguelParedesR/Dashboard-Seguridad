@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { clearAuthSession, getAuthSession, normalizeAuthRole } from '../services/sessionAuth.js';
-import { clearUsuarioSessionStorage } from '../app-usuario/usuarioAuth.js';
 import '../styles/sidebar.css';
 
 const NAV_GROUPS = [
@@ -155,7 +154,6 @@ export default function Sidebar() {
 
   const handleLogout = async () => {
     clearAuthSession();
-    clearUsuarioSessionStorage();
     try {
       const waiter = window.CONFIG?.SUPABASE?.waitForClient;
       if (typeof waiter === 'function') {

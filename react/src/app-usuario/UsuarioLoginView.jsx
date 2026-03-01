@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getClientOrThrow } from './usuarioApi.js';
 import { mapUsuarioRow, matchesProfile, normalizeDni, normalizeProfile } from './usuarioAuth.js';
-import { clearAuthSession, getAuthSession, getDefaultRouteForRole, setAuthSession } from '../services/sessionAuth.js';
+import { setAuthSession } from '../services/sessionAuth.js';
 import './usuario-login.css';
 
 const USUARIOS_SELECT = 'id,nombre,correo,dni,rol,activo';
@@ -38,6 +38,10 @@ function asFriendlyLoginError(error, fallbackMessage) {
   return error?.message || fallbackMessage;
 }
 
+function getRouteForRole(role) {
+  return role === 'admin' ? '/html/base/dashboard.html' : '/lockers/solicitudes';
+}
+
 export default function UsuarioLoginView() {
   const navigate = useNavigate();
 
@@ -57,12 +61,6 @@ export default function UsuarioLoginView() {
       document.body.classList.remove('view-usuario-login');
     };
   }, []);
-
-  useEffect(() => {
-    const session = getAuthSession();
-    if (!session?.role) return;
-    navigate(getDefaultRouteForRole(session.role), { replace: true });
-  }, [navigate]);
 
   const selectedUsuario = useMemo(
     () => usuarios.find((item) => String(item.id) === String(selectedUsuarioId)) || null,
@@ -100,7 +98,6 @@ export default function UsuarioLoginView() {
     const normalized = normalizeProfile(nextProfile);
     if (!normalized) return;
     setProfile(normalized);
-    clearAuthSession();
     loadUsuariosByProfile(normalized);
   };
 
@@ -166,7 +163,7 @@ export default function UsuarioLoginView() {
         }
       });
 
-      navigate(getDefaultRouteForRole(role), { replace: true });
+      navigate(getRouteForRole(role), { replace: true });
     } catch (err) {
       setError(asFriendlyLoginError(err, 'No se pudo validar el usuario.'));
       setSubmitting(false);
