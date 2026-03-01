@@ -1,17 +1,28 @@
 const SESSION_KEY = 'dashboard:auth:session';
 const SESSION_MAX_AGE_MS = 8 * 60 * 60 * 1000;
 
-const DEFAULT_ROUTE_BY_ROLE = {
-  admin: '/html/base/dashboard.html',
-  operador: '/html/actividades-cctv/incidencias.html'
+const ROLE_ALIASES = {
+  admin: 'admin',
+  administrador: 'admin',
+  cctv: 'cctv',
+  operador: 'cctv',
+  operador_cctv: 'cctv',
+  'operador cctv': 'cctv'
 };
 
-const ALLOWED_ROUTES_BY_ROLE = {
+const DEFAULT_ROUTE_BY_ROLE = {
+  admin: '/html/base/dashboard.html',
+  cctv: '/lockers/solicitudes'
+};
+
+const ALLOWED_ROUTE_PREFIXES_BY_ROLE = {
   admin: null,
-  operador: new Set([
+  cctv: [
+    '/incidencias',
+    '/lockers',
     '/html/actividades-cctv/incidencias.html',
     '/html/actividades-cctv/lockers.html'
-  ])
+  ]
 };
 
 function normalizePath(pathname) {
@@ -21,10 +32,21 @@ function normalizePath(pathname) {
   return normalized || '/';
 }
 
+export function normalizeAuthRole(role) {
+  const normalized = String(role || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  return ROLE_ALIASES[normalized] || normalized;
+}
+
+function hasAllowedPrefix(pathname, prefix) {
+  const target = normalizePath(prefix);
+  if (!target || target === '/') return pathname === '/';
+  return pathname === target || pathname.startsWith(`${target}/`);
+}
+
 export function setAuthSession(session) {
   if (typeof window === 'undefined') return;
   const payload = {
-    role: String(session?.role || '').trim().toLowerCase(),
+    role: normalizeAuthRole(session?.role),
     user: session?.user || null,
     createdAt: Date.now()
   };
@@ -61,16 +83,16 @@ export function getAuthSession() {
 }
 
 export function getDefaultRouteForRole(role) {
-  const normalized = String(role || '').trim().toLowerCase();
+  const normalized = normalizeAuthRole(role);
   return DEFAULT_ROUTE_BY_ROLE[normalized] || '/usuario/login';
 }
 
 export function canAccessPath(role, pathname) {
-  const normalizedRole = String(role || '').trim().toLowerCase();
+  const normalizedRole = normalizeAuthRole(role);
   const normalizedPath = normalizePath(pathname);
 
-  const rules = ALLOWED_ROUTES_BY_ROLE[normalizedRole];
+  const rules = ALLOWED_ROUTE_PREFIXES_BY_ROLE[normalizedRole];
   if (rules === null) return true;
-  if (!rules) return false;
-  return rules.has(normalizedPath);
+  if (!Array.isArray(rules) || rules.length === 0) return false;
+  return rules.some((prefix) => hasAllowedPrefix(normalizedPath, prefix));
 }

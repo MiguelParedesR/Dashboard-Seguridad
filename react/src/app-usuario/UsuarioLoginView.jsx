@@ -2,8 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getClientOrThrow } from './usuarioApi.js';
 import { mapUsuarioRow, matchesProfile, normalizeDni, normalizeProfile } from './usuarioAuth.js';
-import { useUsuarioSession } from './context/UsuarioSessionContext.jsx';
+import { clearAuthSession, getAuthSession, getDefaultRouteForRole, setAuthSession } from '../services/sessionAuth.js';
 import './usuario-login.css';
+
+const USUARIOS_SELECT = 'id,nombre,correo,dni,rol,activo';
 
 const PROFILE_OPTIONS = [
   {
@@ -12,7 +14,7 @@ const PROFILE_OPTIONS = [
     caption: 'Gestion completa de solicitudes y asignaciones.'
   },
   {
-    id: 'operador',
+    id: 'cctv',
     title: 'Operador CCTV',
     caption: 'Validacion operativa y control de llaves.'
   }
@@ -28,9 +30,16 @@ function sortedByName(rows) {
     );
 }
 
+function asFriendlyLoginError(error, fallbackMessage) {
+  const raw = String(error?.message || '').toLowerCase();
+  if (raw.includes('infinite recursion') || raw.includes('policy') || String(error?.code || '') === '42P17') {
+    return 'Error de seguridad en Supabase (RLS de usuarios). Debes ajustar policies para login.';
+  }
+  return error?.message || fallbackMessage;
+}
+
 export default function UsuarioLoginView() {
   const navigate = useNavigate();
-  const { isAuthenticated, setSession, clearSession } = useUsuarioSession();
 
   const [profile, setProfile] = useState('');
   const [usuarios, setUsuarios] = useState([]);
@@ -50,15 +59,16 @@ export default function UsuarioLoginView() {
   }, []);
 
   useEffect(() => {
-    if (!isAuthenticated) return;
-    navigate('/usuario/solicitudes', { replace: true });
-  }, [isAuthenticated, navigate]);
+    const session = getAuthSession();
+    if (!session?.role) return;
+    navigate(getDefaultRouteForRole(session.role), { replace: true });
+  }, [navigate]);
 
   const selectedUsuario = useMemo(
     () => usuarios.find((item) => String(item.id) === String(selectedUsuarioId)) || null,
     [selectedUsuarioId, usuarios]
   );
-  const profileLabel = profile === 'admin' ? 'Administrador' : 'Operador CCTV';
+  const profileLabel = profile === 'admin' ? 'Administrador' : 'CCTV';
 
   const loadUsuariosByProfile = async (nextProfile) => {
     setLoadingUsuarios(true);
@@ -69,12 +79,8 @@ export default function UsuarioLoginView() {
 
     try {
       const supabase = await getClientOrThrow();
-      const { data, error: queryError } = await supabase
-        .from('usuarios')
-        .select('id,nombre,nombre_completo,dni,rol,role,activo,estado');
-
+      const { data, error: queryError } = await supabase.from('usuarios').select(USUARIOS_SELECT).eq('activo', true);
       if (queryError) throw queryError;
-
       const mapped = (Array.isArray(data) ? data : []).map((row) => mapUsuarioRow(row));
       const filtered = sortedByName(mapped.filter((row) => matchesProfile(row, nextProfile)));
       setUsuarios(filtered);
@@ -84,7 +90,7 @@ export default function UsuarioLoginView() {
       }
     } catch (err) {
       setUsuarios([]);
-      setError(err?.message || 'No se pudo cargar la lista de usuarios.');
+      setError(asFriendlyLoginError(err, 'No se pudo cargar la lista de usuarios.'));
     } finally {
       setLoadingUsuarios(false);
     }
@@ -94,7 +100,7 @@ export default function UsuarioLoginView() {
     const normalized = normalizeProfile(nextProfile);
     if (!normalized) return;
     setProfile(normalized);
-    clearSession();
+    clearAuthSession();
     loadUsuariosByProfile(normalized);
   };
 
@@ -132,10 +138,9 @@ export default function UsuarioLoginView() {
       const supabase = await getClientOrThrow();
       const { data, error: queryError } = await supabase
         .from('usuarios')
-        .select('id,nombre,nombre_completo,dni,rol,role,activo,estado')
+        .select(USUARIOS_SELECT)
         .eq('id', selectedUsuario.id)
         .maybeSingle();
-
       if (queryError) throw queryError;
       if (!data) throw new Error('Usuario no disponible.');
 
@@ -150,16 +155,20 @@ export default function UsuarioLoginView() {
         throw new Error('DNI incorrecto para el usuario seleccionado.');
       }
 
-      setSession({
-        id: validatedUsuario.id,
-        nombre: validatedUsuario.nombre,
-        dni: validatedUsuario.dni,
-        profile
+      const role = profile === 'admin' ? 'admin' : 'cctv';
+      setAuthSession({
+        role,
+        user: {
+          id: validatedUsuario.id,
+          nombre: validatedUsuario.nombre,
+          dni: validatedUsuario.dni,
+          role
+        }
       });
 
-      navigate('/usuario/solicitudes', { replace: true });
+      navigate(getDefaultRouteForRole(role), { replace: true });
     } catch (err) {
-      setError(err?.message || 'No se pudo validar el usuario.');
+      setError(asFriendlyLoginError(err, 'No se pudo validar el usuario.'));
       setSubmitting(false);
     }
   };

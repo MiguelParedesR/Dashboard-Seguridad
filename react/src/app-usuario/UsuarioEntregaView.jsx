@@ -121,7 +121,7 @@ export default function UsuarioEntregaView() {
 
       if (solicitudError) throw solicitudError;
 
-      navigate('/usuario/asignaciones', {
+      navigate('/lockers/asignaciones', {
         replace: true,
         state: { successMessage: 'Entrega registrada y solicitud marcada como ASIGNADA.' }
       });
@@ -139,7 +139,7 @@ export default function UsuarioEntregaView() {
             <h1>Entrega de llaves</h1>
             <p>Registro obligatorio posterior a la aprobacion de solicitud.</p>
           </div>
-          <button className="usuario-ghost-button" type="button" onClick={() => navigate('/usuario/solicitudes')}>
+          <button className="usuario-ghost-button" type="button" onClick={() => navigate('/lockers/solicitudes')}>
             Volver a solicitudes
           </button>
         </div>

@@ -1,12 +1,14 @@
-export const USUARIO_SESSION_KEY = 'app-usuario:session';
+import { clearAuthSession, getAuthSession, normalizeAuthRole, setAuthSession } from '../services/sessionAuth.js';
+
+export const USUARIO_SESSION_KEY = 'dashboard:auth:session';
 
 const ROLE_ALIAS = {
   admin: 'admin',
   administrador: 'admin',
-  cctv: 'operador',
-  operador: 'operador',
-  operador_cctv: 'operador',
-  'operador cctv': 'operador'
+  cctv: 'cctv',
+  operador: 'cctv',
+  operador_cctv: 'cctv',
+  'operador cctv': 'cctv'
 };
 
 function sanitizeText(value) {
@@ -32,7 +34,10 @@ export function normalizeRole(value) {
 
 export function normalizeProfile(value) {
   const normalized = sanitizeText(value).toLowerCase();
-  return normalized === 'admin' ? 'admin' : normalized === 'operador' ? 'operador' : '';
+  if (!normalized) return '';
+  if (normalized === 'admin' || normalized === 'administrador') return 'admin';
+  if (['cctv', 'operador', 'operador_cctv', 'operador cctv'].includes(normalized)) return 'cctv';
+  return '';
 }
 
 export function normalizeDni(value) {
@@ -70,35 +75,38 @@ export function normalizeUsuarioSession(input) {
 }
 
 export function readUsuarioSession() {
-  if (typeof window === 'undefined') return null;
-  const raw = window.sessionStorage.getItem(USUARIO_SESSION_KEY);
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw);
-    const normalized = normalizeUsuarioSession(parsed);
-    if (!normalized) {
-      window.sessionStorage.removeItem(USUARIO_SESSION_KEY);
-      return null;
-    }
-    return normalized;
-  } catch (err) {
-    window.sessionStorage.removeItem(USUARIO_SESSION_KEY);
-    return null;
-  }
+  const session = getAuthSession();
+  if (!session?.user) return null;
+
+  return normalizeUsuarioSession({
+    id: session.user.id || session.user.usuario_id,
+    nombre: session.user.nombre,
+    dni: session.user.dni,
+    profile: normalizeAuthRole(session.role)
+  });
 }
 
 export function writeUsuarioSession(session) {
-  if (typeof window === 'undefined') return null;
   const normalized = normalizeUsuarioSession(session);
   if (!normalized) {
-    window.sessionStorage.removeItem(USUARIO_SESSION_KEY);
+    clearAuthSession();
     return null;
   }
-  window.sessionStorage.setItem(USUARIO_SESSION_KEY, JSON.stringify(normalized));
+
+  const role = normalizeAuthRole(normalized.profile);
+  setAuthSession({
+    role,
+    user: {
+      id: normalized.id,
+      nombre: normalized.nombre,
+      dni: normalized.dni,
+      role
+    }
+  });
+
   return normalized;
 }
 
 export function clearUsuarioSessionStorage() {
-  if (typeof window === 'undefined') return;
-  window.sessionStorage.removeItem(USUARIO_SESSION_KEY);
+  clearAuthSession();
 }

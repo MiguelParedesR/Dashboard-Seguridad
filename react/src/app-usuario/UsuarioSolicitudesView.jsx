@@ -165,7 +165,7 @@ export default function UsuarioSolicitudesView() {
       if (insertError) throw insertError;
       if (!asignacion?.id) throw new Error('No se pudo obtener la asignacion creada.');
 
-      navigate(`/usuario/solicitudes/entrega/${asignacion.id}?solicitud=${selected.id}`, {
+      navigate(`/lockers/solicitudes/entrega/${asignacion.id}?solicitud=${selected.id}`, {
         replace: true
       });
     } catch (err) {

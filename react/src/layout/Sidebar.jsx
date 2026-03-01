@@ -1,15 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { clearAuthSession } from '../services/sessionAuth.js';
+import { clearAuthSession, getAuthSession, normalizeAuthRole } from '../services/sessionAuth.js';
 import { clearUsuarioSessionStorage } from '../app-usuario/usuarioAuth.js';
 import '../styles/sidebar.css';
-
-const INCIDENCIAS_URL = 'https://miguelparedesr.github.io/Formulario-Mamparas/?view=%2Findex.html';
 
 const NAV_GROUPS = [
   {
     id: 'main',
     label: 'Principal',
+    roles: ['admin'],
     items: [
       { label: 'Dashboard', to: '/html/base/dashboard.html', icon: 'dashboard' }
     ]
@@ -17,24 +16,26 @@ const NAV_GROUPS = [
   {
     id: 'cctv',
     label: 'Actividades CCTV',
+    roles: ['admin', 'cctv'],
     items: [
-      { label: 'Incidencias', href: INCIDENCIAS_URL, icon: 'alert', external: true },
-      { label: 'Lockers', to: '/html/actividades-cctv/lockers.html', icon: 'lockers' }
-    ]
-  },
-  {
-    id: 'usuario-lockers',
-    label: 'App Usuario',
-    items: [
-      { label: 'Solicitudes', to: '/usuario/solicitudes', icon: 'request' },
-      { label: 'Lockers', to: '/usuario/lockers', icon: 'lockers' },
-      { label: 'Asignaciones', to: '/usuario/asignaciones', icon: 'assignments' },
-      { label: 'Historial', to: '/usuario/historial', icon: 'history' }
+      { label: 'Incidencias', to: '/incidencias', icon: 'alert', roles: ['admin', 'cctv'] },
+      {
+        label: 'Lockers',
+        icon: 'lockers',
+        roles: ['admin', 'cctv'],
+        children: [
+          { label: 'Solicitudes', to: '/lockers/solicitudes', icon: 'request' },
+          { label: 'Vista General', to: '/lockers/vista', icon: 'lockers' },
+          { label: 'Asignaciones', to: '/lockers/asignaciones', icon: 'assignments' },
+          { label: 'Historial', to: '/lockers/historial', icon: 'history' }
+        ]
+      }
     ]
   },
   {
     id: 'admin',
     label: 'Administracion',
+    roles: ['admin'],
     items: [
       { label: 'Usuarios', to: '/html/admin/admin.html', icon: 'users' },
       { label: 'Noticias', to: '/html/admin/noticias.html', icon: 'news' }
@@ -43,6 +44,7 @@ const NAV_GROUPS = [
   {
     id: 'penalidades',
     label: 'Penalidades',
+    roles: ['admin'],
     items: [
       { label: 'Penalidades', to: '/html/penalidades/penalidades.html', icon: 'penalty' },
       { label: 'Excel', to: '/html/penalidades/excel.html', icon: 'excel' }
@@ -51,6 +53,7 @@ const NAV_GROUPS = [
   {
     id: 'rol',
     label: 'Rol de Servicios',
+    roles: ['admin'],
     items: [
       { label: 'Turnos Dia', to: '/html/rol-servicios/turnos.html', icon: 'sun' },
       { label: 'Turnos Noche', to: '/html/rol-servicios/turnoNoche.html', icon: 'moon' }
@@ -83,9 +86,35 @@ function Icon({ name }) {
   );
 }
 
+function hasRoleAccess(allowedRoles, currentRole) {
+  if (!Array.isArray(allowedRoles) || allowedRoles.length === 0) return true;
+  return allowedRoles.includes(currentRole);
+}
+
+function filterItemsByRole(items, role) {
+  return (Array.isArray(items) ? items : []).reduce((acc, item) => {
+    if (!hasRoleAccess(item.roles, role)) return acc;
+    if (!Array.isArray(item.children) || item.children.length === 0) {
+      acc.push(item);
+      return acc;
+    }
+
+    const children = filterItemsByRole(item.children, role);
+    if (children.length === 0) return acc;
+    acc.push({ ...item, children });
+    return acc;
+  }, []);
+}
+
+function isPathActive(pathname, routePath) {
+  if (!routePath) return false;
+  return pathname === routePath || pathname.startsWith(`${routePath}/`);
+}
+
 export default function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
+  const role = normalizeAuthRole(getAuthSession()?.role);
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('sidebar:collapsed') === 'true');
   const [mobileOpen, setMobileOpen] = useState(false);
   const [openGroups, setOpenGroups] = useState(() =>
@@ -108,7 +137,17 @@ export default function Sidebar() {
     setMobileOpen(false);
   }, [location.pathname]);
 
-  const groups = useMemo(() => NAV_GROUPS, []);
+  const groups = useMemo(
+    () =>
+      NAV_GROUPS
+        .filter((group) => hasRoleAccess(group.roles, role))
+        .map((group) => ({
+          ...group,
+          items: filterItemsByRole(group.items, role)
+        }))
+        .filter((group) => group.items.length > 0),
+    [role]
+  );
 
   const toggleGroup = (id) => {
     setOpenGroups((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -129,6 +168,54 @@ export default function Sidebar() {
       // Best-effort local logout.
     }
     navigate('/html/login-general/login.html');
+  };
+
+  const renderItem = (item) => {
+    const hasChildren = Array.isArray(item.children) && item.children.length > 0;
+    const parentActive = hasChildren ? item.children.some((child) => isPathActive(location.pathname, child.to)) : false;
+
+    if (hasChildren) {
+      return (
+        <div key={item.label} className="nav-parent-wrap">
+          <div className={`nav-link nav-parent ${parentActive ? 'active' : ''}`}>
+            <Icon name={item.icon} />
+            <span className="nav-text">{item.label}</span>
+          </div>
+          <div className="nav-submenu">
+            {item.children.map((child) => (
+              <NavLink
+                key={child.to}
+                to={child.to}
+                className={({ isActive }) => `nav-sublink ${isActive ? 'active' : ''}`}
+              >
+                <Icon name={child.icon} />
+                <span className="nav-text">{child.label}</span>
+              </NavLink>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    if (item.external) {
+      return (
+        <a key={item.href} href={item.href} className="nav-link">
+          <Icon name={item.icon} />
+          <span className="nav-text">{item.label}</span>
+        </a>
+      );
+    }
+
+    return (
+      <NavLink
+        key={item.to}
+        to={item.to}
+        className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+      >
+        <Icon name={item.icon} />
+        <span className="nav-text">{item.label}</span>
+      </NavLink>
+    );
   };
 
   return (
@@ -152,23 +239,7 @@ export default function Sidebar() {
               <span className={`group-chevron ${openGroups[group.id] ? 'open' : ''}`}></span>
             </button>
             <div className={`group-items ${openGroups[group.id] ? 'open' : ''}`}>
-              {group.items.map((item) =>
-                item.external ? (
-                  <a key={item.href} href={item.href} className="nav-link">
-                    <Icon name={item.icon} />
-                    <span className="nav-text">{item.label}</span>
-                  </a>
-                ) : (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-                  >
-                    <Icon name={item.icon} />
-                    <span className="nav-text">{item.label}</span>
-                  </NavLink>
-                )
-              )}
+              {group.items.map((item) => renderItem(item))}
             </div>
           </div>
         ))}
