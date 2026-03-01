@@ -2,7 +2,7 @@ const CACHE_VERSION = 'v2';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;
 
-const CORE_ASSETS = ['.', './', './index.html'];
+const CORE_ASSETS = ['./', './index.html'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
