@@ -1,0 +1,107 @@
+.admin-lockers-config {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.config-feedback {
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  font-weight: 600;
+}
+
+.config-feedback.success {
+  background: rgba(16, 185, 129, 0.16);
+  color: #065f46;
+}
+
+.config-feedback.warn {
+  background: rgba(245, 158, 11, 0.18);
+  color: #92400e;
+}
+
+.config-feedback.error {
+  background: rgba(239, 68, 68, 0.18);
+  color: #991b1b;
+}
+
+.config-create-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.config-inline-row {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+}
+
+.config-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.config-table-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.config-table-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.config-table-wrap {
+  overflow-x: auto;
+}
+
+.config-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 720px;
+}
+
+.config-table th,
+.config-table td {
+  text-align: left;
+  vertical-align: top;
+  padding: 12px 10px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.config-table .status {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.status.activo {
+  background: rgba(16, 185, 129, 0.18);
+  color: #065f46;
+}
+
+.status.inactivo {
+  background: rgba(239, 68, 68, 0.16);
+  color: #991b1b;
+}
+
+.config-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media (max-width: 900px) {
+  .config-inline-row {
+    grid-template-columns: 1fr;
+  }
+}
