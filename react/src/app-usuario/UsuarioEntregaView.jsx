@@ -10,6 +10,12 @@ import {
 } from './usuarioApi.js';
 import './usuario.css';
 
+function getLlavesReales(locker) {
+  const candado = Number(Boolean(locker?.tiene_candado));
+  const duplicado = Number(Boolean(locker?.tiene_duplicado_llave));
+  return candado + duplicado;
+}
+
 export default function UsuarioEntregaView() {
   const navigate = useNavigate();
   const { asignacionId } = useParams();
@@ -66,7 +72,7 @@ export default function UsuarioEntregaView() {
     };
   }, [asignacionId]);
 
-  const totalLlavesVisual = useMemo(() => (locker?.tiene_duplicado_llave ? 2 : 1), [locker?.tiene_duplicado_llave]);
+  const totalLlavesVisual = useMemo(() => getLlavesReales(locker), [locker?.tiene_candado, locker?.tiene_duplicado_llave]);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -99,8 +105,8 @@ export default function UsuarioEntregaView() {
         {
           asignacion_id: asignacion.id,
           tipo: 'ENTREGA',
-          llaves_declaradas: 1,
-          llaves_esperadas: 1,
+          llaves_declaradas: totalLlavesVisual,
+          llaves_esperadas: totalLlavesVisual,
           foto_llaves_url: fotoEntregaUrl,
           declaracion: 'Entrega inicial',
           firmado: true
@@ -173,7 +179,7 @@ export default function UsuarioEntregaView() {
                 <strong>{formatDateTime(asignacion.fecha_asignacion)}</strong>
               </div>
               <div className="usuario-detail-item">
-                <span>Total llaves esperadas (visual)</span>
+                <span>Total llaves esperadas (real)</span>
                 <strong>{totalLlavesVisual}</strong>
               </div>
               <div className="usuario-detail-item">
@@ -220,7 +226,7 @@ export default function UsuarioEntregaView() {
                 onChange={(event) => setConfirmEntrega(event.target.checked)}
                 disabled={submitting || loading}
               />
-              Confirmo que entrego 1 llave
+              Confirmo que entrego {totalLlavesVisual} llave{totalLlavesVisual === 1 ? '' : 's'}
             </label>
 
             <label className="usuario-check" htmlFor="check-respaldo">

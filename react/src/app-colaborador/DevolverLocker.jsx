@@ -32,9 +32,16 @@ async function uploadImage(supabase, file, folder, collaboratorId) {
   return publicUrl;
 }
 
+function getLlavesReales(locker) {
+  const candado = Number(Boolean(locker?.tiene_candado));
+  const duplicado = Number(Boolean(locker?.tiene_duplicado_llave));
+  return candado + duplicado;
+}
+
 export default function DevolverLocker() {
   const { session } = useColaboradorContext();
   const [asignacionActiva, setAsignacionActiva] = useState(null);
+  const [lockerMeta, setLockerMeta] = useState(null);
   const [loading, setLoading] = useState(true);
   const [fotoLlaves, setFotoLlaves] = useState(null);
   const [sending, setSending] = useState(false);
@@ -69,14 +76,16 @@ export default function DevolverLocker() {
         if (data?.locker_id) {
           const { data: lockerData } = await supabase
             .from('lockers')
-            .select('codigo')
+            .select('codigo,tiene_candado,tiene_duplicado_llave')
             .eq('id', data.locker_id)
             .limit(1)
             .maybeSingle();
           if (!mounted) return;
           setLockerCodigo(String(lockerData?.codigo || ''));
+          setLockerMeta(lockerData || null);
         } else {
           setLockerCodigo('');
+          setLockerMeta(null);
         }
       } catch (err) {
         if (!mounted) return;
@@ -122,8 +131,8 @@ export default function DevolverLocker() {
         {
           asignacion_id: asignacionActiva.id,
           tipo: 'DEVOLUCION',
-          llaves_declaradas: 1,
-          llaves_esperadas: 1,
+          llaves_declaradas: getLlavesReales(lockerMeta),
+          llaves_esperadas: getLlavesReales(lockerMeta),
           foto_llaves_url: fotoLlavesUrl,
           declaracion: declaracion.trim(),
           firmado: true
@@ -132,19 +141,10 @@ export default function DevolverLocker() {
 
       if (movimientoError) throw movimientoError;
 
-      const { error: cierreError } = await supabase
-        .from('asignaciones_locker')
-        .update({
-          activa: false,
-          fecha_liberacion: new Date().toISOString()
-        })
-        .eq('id', asignacionActiva.id);
-
-      if (cierreError) throw cierreError;
-
       setSuccess(true);
       setFotoLlaves(null);
       setAsignacionActiva(null);
+      setLockerMeta(null);
     } catch (err) {
       setError(err?.message || 'No se pudo registrar la devolucion.');
     } finally {

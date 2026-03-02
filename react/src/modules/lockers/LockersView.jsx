@@ -195,9 +195,9 @@ export default function LockersView() {
               </div>
 
               <div className="panel-actions">
-                <button className="btn" id="lockerAssignBtn" type="button">Asignar</button>
-                <button className="btn ghost" id="lockerReleaseBtn" type="button">Liberar</button>
-                <button className="btn ghost" id="lockerBlockBtn" type="button">Bloquear</button>
+                <button className="btn" id="lockerAssignBtn" type="button">Aprobar</button>
+                <button className="btn ghost" id="lockerReleaseBtn" type="button">Devolucion</button>
+                <button className="btn ghost" id="lockerBlockBtn" type="button">Mantenimiento</button>
               </div>
             </div>
           </aside>
@@ -240,9 +240,9 @@ export default function LockersView() {
       <div className="panel-backdrop" id="lockerPanelBackdrop" aria-hidden="true"></div>
       <div className="locker-toast" id="lockerToast" role="status" aria-live="polite"></div>
       <div className="locker-quick-menu" id="lockerQuickMenu" role="menu" aria-hidden="true">
-        <button type="button" className="quick-action" id="lockerQuickAssign" role="menuitem">Asignar</button>
-        <button type="button" className="quick-action" id="lockerQuickRelease" role="menuitem">Liberar</button>
-        <button type="button" className="quick-action" id="lockerQuickBlock" role="menuitem">Bloquear</button>
+        <button type="button" className="quick-action" id="lockerQuickAssign" role="menuitem">Aprobar</button>
+        <button type="button" className="quick-action" id="lockerQuickRelease" role="menuitem">Devolucion</button>
+        <button type="button" className="quick-action" id="lockerQuickBlock" role="menuitem">Mantenimiento</button>
       </div>
     </main>
   );

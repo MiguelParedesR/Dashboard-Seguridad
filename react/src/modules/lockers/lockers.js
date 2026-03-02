@@ -87,7 +87,20 @@
   let scrollTicking = false;
 
   const MODULE_KEY = "lockers";
-  const LOCKERS_READ_SOURCES = ["v_lockers_actual", "vw_locker_estado_general", "lockers"];
+  const LOCKERS_READ_SOURCES = ["v_lockers_actual", "vw_locker_estado_general"];
+  const SOLICITUDES_PENDIENTES = ["CREADA", "EN_REVISION"];
+  const SOLICITUDES_ELEGIBLES_ASIGNACION = ["CREADA", "EN_REVISION", "APROBADA"];
+  const RPC_ARG_CANDIDATES = [
+    (lockerId, asignacionId) => ({ p_locker_id: lockerId, p_asignacion_id: asignacionId }),
+    (lockerId, asignacionId) => ({ locker_id: lockerId, asignacion_id: asignacionId }),
+    (lockerId, asignacionId) => ({ p_locker_id: lockerId, asignacion_id: asignacionId }),
+    (lockerId, asignacionId) => ({ locker_id: lockerId, p_asignacion_id: asignacionId }),
+    (lockerId) => ({ p_locker_id: lockerId }),
+    (lockerId) => ({ locker_id: lockerId }),
+    (lockerId) => ({ id_locker: lockerId }),
+    (lockerId) => ({ p_id_locker: lockerId }),
+    (lockerId) => ({ locker: lockerId })
+  ];
 
   function resolveDbKey() {
     return window.CONFIG?.SUPABASE?.resolveDbKeyForModule?.(MODULE_KEY) || "LOCKERS";
@@ -1062,18 +1075,18 @@
     const hasSelection = !!locker;
     if (dom.panelTitle) dom.panelTitle.textContent = "Detalle del locker";
     dom.selectedHint.textContent = hasSelection
-      ? "Edita la ficha o ejecuta una accion rapida."
+      ? "Ficha en solo lectura. Ejecuta flujos canonicos."
       : "Selecciona un locker del mapa.";
 
     dom.assignBtn.disabled = !hasSelection;
     dom.releaseBtn.disabled = !hasSelection;
     dom.blockBtn.disabled = !hasSelection;
-    dom.nameInput.disabled = !hasSelection;
-    dom.dateInput.disabled = !hasSelection;
-    dom.areaSelect.disabled = !hasSelection;
-    dom.localSelect.disabled = !hasSelection;
-    dom.hasPadlock.disabled = !hasSelection;
-    dom.hasDuplicateKey.disabled = !hasSelection;
+    dom.nameInput.disabled = true;
+    dom.dateInput.disabled = true;
+    dom.areaSelect.disabled = true;
+    dom.localSelect.disabled = true;
+    dom.hasPadlock.disabled = true;
+    dom.hasDuplicateKey.disabled = true;
 
     setPanelOpen(hasSelection && !state.panelLocked);
 
@@ -1090,9 +1103,9 @@
       dom.selectedStateBadge.style.setProperty("--state-color", "#9ca3af");
       dom.selectedStateBadge.style.setProperty("--state-ink", "#ffffff");
       dom.selectedStateLabel.textContent = "Sin seleccion";
-      dom.assignBtn.textContent = "Asignar";
-      dom.releaseBtn.textContent = "Liberar";
-      dom.blockBtn.textContent = "Bloquear";
+      dom.assignBtn.textContent = "Aprobar";
+      dom.releaseBtn.textContent = "Devolucion";
+      dom.blockBtn.textContent = "Mantenimiento";
       dom.assignBtn.classList.remove("is-primary");
       dom.releaseBtn.classList.remove("is-primary");
       dom.blockBtn.classList.remove("is-primary");
@@ -1130,15 +1143,16 @@
     let primary = "assign";
 
     if (estado === "OCUPADO") primary = "release";
-    if (estado === "BLOQUEADO") primary = "block";
-    if (estado === "MANTENIMIENTO") primary = "release";
+    if (estado === "BLOQUEADO" || estado === "MANTENIMIENTO") primary = "block";
 
     dom.assignBtn.classList.toggle("is-primary", primary === "assign");
     dom.releaseBtn.classList.toggle("is-primary", primary === "release");
     dom.blockBtn.classList.toggle("is-primary", primary === "block");
 
-    dom.assignBtn.textContent = estado === "SE_DESCONOCE" ? "Regularizar" : "Asignar";
-    dom.blockBtn.textContent = estado === "BLOQUEADO" ? "Desbloquear" : "Bloquear";
+    dom.assignBtn.textContent = "Aprobar";
+    dom.releaseBtn.textContent = "Devolucion";
+    dom.blockBtn.textContent =
+      estado === "MANTENIMIENTO" || estado === "BLOQUEADO" ? "Reactivar" : "Mantenimiento";
   }
 
   function renderAll() {
@@ -1164,58 +1178,179 @@
     state.updateTimers.set(id, timer);
   }
 
-  async function updateLocker(id, payload, successMessage) {
-    const current = state.lockers.find((locker) => locker.id === id);
-    const currentState = current ? normalizeEstado(current.estado) : null;
-    const targetState = payload.estado ? normalizeEstado(payload.estado) : currentState;
-    state.loadingColumns = new Set([currentState, targetState].filter(Boolean));
-    renderColumns();
+  function getLockerId(locker) {
+    if (!locker) return null;
+    return locker.id;
+  }
 
-    const supabase = getSupabaseClient();
-    if (!supabase) {
-      setStatus("Supabase no esta disponible.", "error");
-      state.loadingColumns = new Set();
-      renderColumns();
-      return null;
+  function getLlavesReales(locker) {
+    const candado = Number(Boolean(locker?.tiene_candado));
+    const duplicado = Number(Boolean(locker?.tiene_duplicado_llave));
+    return candado + duplicado;
+  }
+
+  function isRpcFunctionMissing(error) {
+    if (!error) return false;
+    const code = String(error.code || "").toUpperCase();
+    const message = String(error.message || "").toLowerCase();
+    return (
+      code === "PGRST202" ||
+      (message.includes("function") && message.includes("does not exist")) ||
+      message.includes("could not find the function")
+    );
+  }
+
+  function isRpcNamedArgumentError(error) {
+    if (!error) return false;
+    const message = String(error.message || "").toLowerCase();
+    return message.includes("named argument") || message.includes("parameter") || message.includes("signature");
+  }
+
+  async function callLockerRpc(supabase, fnName, lockerId, asignacionId = null) {
+    let lastError = null;
+
+    for (const buildArgs of RPC_ARG_CANDIDATES) {
+      const rawArgs = buildArgs(lockerId, asignacionId);
+      const args = Object.fromEntries(
+        Object.entries(rawArgs || {}).filter(([, value]) => value !== undefined && value !== null)
+      );
+      if (!Object.keys(args).length) continue;
+
+      const { error, data } = await supabase.rpc(fnName, args);
+      if (!error) return { ok: true, data };
+      lastError = error;
+
+      if (!isRpcNamedArgumentError(error) && !isRpcFunctionMissing(error)) {
+        // The function exists but failed for business reasons; no point trying more signatures.
+        return { ok: false, error };
+      }
     }
-    setStatus("Guardando cambios...", "info");
 
-    const { data, error } = await supabase
-      .from("lockers")
-      .update(payload)
-      .eq("id", id)
-      .select("*")
+    const { error, data } = await supabase.rpc(fnName);
+    if (!error) return { ok: true, data };
+    return { ok: false, error: error || lastError };
+  }
+
+  async function fetchActiveAssignmentByLocker(supabase, lockerId) {
+    const ordered = await supabase
+      .from("asignaciones_locker")
+      .select("id,solicitud_id,colaborador_id,locker_id,activa,fecha_asignacion")
+      .eq("locker_id", lockerId)
+      .eq("activa", true)
+      .order("fecha_asignacion", { ascending: false })
+      .limit(1);
+
+    if (!ordered.error) {
+      return Array.isArray(ordered.data) ? ordered.data[0] || null : null;
+    }
+
+    const fallback = await supabase
+      .from("asignaciones_locker")
+      .select("id,solicitud_id,colaborador_id,locker_id,activa,fecha_asignacion")
+      .eq("locker_id", lockerId)
+      .eq("activa", true)
+      .limit(1)
       .maybeSingle();
 
-    if (error) {
-      setStatus(`Error al guardar: ${error.message || error}`, "error");
-      state.loadingColumns = new Set();
-      renderColumns();
-      return null;
-    }
-
-    if (!data) {
-      setStatus(
-        "No se pudo guardar: el rol actual no tiene permiso de actualizacion sobre lockers (RLS).",
-        "error"
-      );
-      state.loadingColumns = new Set();
-      renderColumns();
-      return null;
-    }
-
-    const index = state.lockers.findIndex((locker) => locker.id === id);
-    if (index >= 0) state.lockers[index] = data;
-    else state.lockers.push(data);
-
-    ensureAreaSelectOptions(state.lockers);
-    ensureLocalSelectOptions(state.lockers);
-    markUpdated(id);
-    state.loadingColumns = new Set();
-    renderAll();
-    setStatus(successMessage || "Locker actualizado.", "success");
-    return data;
+    if (fallback.error) throw fallback.error;
+    return fallback.data || null;
   }
+
+  async function fetchSolicitudParaAprobacion(supabase, lockerId) {
+    const { data, error } = await supabase
+      .from("solicitudes_locker")
+      .select("id,colaborador_id,locker_id,estado,created_at")
+      .eq("locker_id", lockerId)
+      .in("estado", SOLICITUDES_ELEGIBLES_ASIGNACION)
+      .order("created_at", { ascending: true })
+      .limit(1);
+
+    if (error) throw error;
+    return Array.isArray(data) ? data[0] || null : null;
+  }
+
+  async function ensureSolicitudAprobada(supabase, solicitud) {
+    if (!solicitud) return null;
+    if (!SOLICITUDES_PENDIENTES.includes(solicitud.estado)) return solicitud;
+
+    const { error } = await supabase
+      .from("solicitudes_locker")
+      .update({ estado: "APROBADA" })
+      .eq("id", solicitud.id);
+
+    if (error) throw error;
+    return { ...solicitud, estado: "APROBADA" };
+  }
+
+  async function fetchAssignmentBySolicitud(supabase, solicitudId) {
+    const { data, error } = await supabase
+      .from("asignaciones_locker")
+      .select("id,solicitud_id,colaborador_id,locker_id,activa,fecha_asignacion")
+      .eq("solicitud_id", solicitudId)
+      .order("fecha_asignacion", { ascending: false })
+      .limit(1);
+
+    if (error) throw error;
+    return Array.isArray(data) ? data[0] || null : null;
+  }
+
+  async function ensureAssignmentFromSolicitud(supabase, solicitud) {
+    const activeByLocker = await fetchActiveAssignmentByLocker(supabase, solicitud.locker_id);
+    if (activeByLocker) return activeByLocker;
+
+    const { data, error } = await supabase
+      .from("asignaciones_locker")
+      .insert([
+        {
+          solicitud_id: solicitud.id,
+          colaborador_id: solicitud.colaborador_id,
+          locker_id: solicitud.locker_id,
+          activa: true
+        }
+      ])
+      .select("id,solicitud_id,colaborador_id,locker_id,activa,fecha_asignacion")
+      .maybeSingle();
+
+    if (!error && data) {
+      return data;
+    }
+
+    const code = String(error?.code || "");
+    const message = String(error?.message || "").toLowerCase();
+    if (code === "23505" || message.includes("duplicate")) {
+      const existing = await fetchAssignmentBySolicitud(supabase, solicitud.id);
+      if (existing) return existing;
+    }
+
+    if (error) throw error;
+    throw new Error("No se pudo crear la asignacion.");
+  }
+
+  async function insertMovimientoLlaves(supabase, payload) {
+    const { error } = await supabase.from("llaves_movimientos").insert([payload]);
+    if (error) throw error;
+  }
+
+  async function withLockerAction(locker, targetStates, handler) {
+    const currentState = normalizeEstado(locker?.estado);
+    state.loadingColumns = new Set([currentState, ...(targetStates || [])].filter(Boolean));
+    renderColumns();
+
+    try {
+      await handler();
+    } finally {
+      state.loadingColumns = new Set();
+      renderColumns();
+    }
+  }
+
+  function navigateToEntrega(asignacionId, solicitudId) {
+    if (!asignacionId) return;
+    const safeAsignacionId = encodeURIComponent(String(asignacionId));
+    const solicitudQuery = solicitudId ? `?solicitud=${encodeURIComponent(String(solicitudId))}` : "";
+    window.location.hash = `#/lockers/solicitudes/entrega/${safeAsignacionId}${solicitudQuery}`;
+  }
+
   async function handleAssign() {
     const locker = getSelectedLocker();
     if (!locker) {
@@ -1223,36 +1358,44 @@
       return;
     }
 
-    const name = dom.nameInput.value.trim();
-    if (!name) {
-      setStatus("Ingresa un nombre para asignar.", "warn");
-      dom.nameInput.focus();
+    const lockerId = getLockerId(locker);
+    if (!lockerId) {
+      setStatus("El locker seleccionado no tiene id valido.", "error");
       return;
     }
 
-    const date = dom.dateInput.value || new Date().toISOString().slice(0, 10);
-    const area = dom.areaSelect.value || normalizeArea(locker.area) || AREA_BASE[0];
-    const local =
-      normalizeLocal(dom.localSelect.value) ||
-      normalizeLocal(locker.local) ||
-      state.filters.local ||
-      LOCAL_BASE[0];
-    const occupiedMeta = STATE_META.OCUPADO;
+    const supabase = getSupabaseClient() || (await waitForSupabase(20, 150));
+    if (!supabase) {
+      setStatus("Supabase no esta disponible.", "error");
+      return;
+    }
 
-    const payload = {
-      area,
-      local,
-      updated_at: new Date().toISOString(),
-      colaborador_nombre: name,
-      fecha_asignacion: date || null,
-      estado: "OCUPADO",
-      color_estado: occupiedMeta.color,
-      icono_estado: occupiedMeta.icon,
-      tiene_candado: dom.hasPadlock.checked,
-      tiene_duplicado_llave: dom.hasDuplicateKey.checked
-    };
+    try {
+      await withLockerAction(locker, ["OCUPADO"], async () => {
+        setStatus("Validando solicitud para aprobar...", "info");
 
-    await updateLocker(locker.id, payload, "Locker asignado.");
+        const activeAssignment = await fetchActiveAssignmentByLocker(supabase, lockerId);
+        if (activeAssignment?.id) {
+          setStatus("El locker ya tiene una asignacion activa.", "warn");
+          return;
+        }
+
+        const solicitud = await fetchSolicitudParaAprobacion(supabase, lockerId);
+        if (!solicitud) {
+          setStatus("No hay solicitud pendiente para este locker. Usa el modulo Solicitudes.", "warn");
+          return;
+        }
+
+        const solicitudAprobada = await ensureSolicitudAprobada(supabase, solicitud);
+        const asignacion = await ensureAssignmentFromSolicitud(supabase, solicitudAprobada);
+
+        await loadLockers(true);
+        setStatus("Solicitud aprobada y asignacion creada. Continua con ENTREGA.", "success");
+        navigateToEntrega(asignacion.id, solicitudAprobada.id);
+      });
+    } catch (error) {
+      setStatus(`Error en aprobacion: ${error?.message || error}`, "error");
+    }
   }
 
   async function handleRelease() {
@@ -1262,26 +1405,43 @@
       return;
     }
 
-    const libreMeta = STATE_META.LIBRE;
-    const local =
-      normalizeLocal(dom.localSelect.value) ||
-      normalizeLocal(locker.local) ||
-      state.filters.local ||
-      LOCAL_BASE[0];
-    const payload = {
-      colaborador_nombre: null,
-      fecha_asignacion: null,
-      estado: "LIBRE",
-      color_estado: libreMeta.color,
-      icono_estado: libreMeta.icon,
-      area: dom.areaSelect.value || normalizeArea(locker.area) || AREA_BASE[0],
-      local,
-      tiene_candado: false,
-      tiene_duplicado_llave: false,
-      updated_at: new Date().toISOString()
-    };
+    const lockerId = getLockerId(locker);
+    if (!lockerId) {
+      setStatus("El locker seleccionado no tiene id valido.", "error");
+      return;
+    }
 
-    await updateLocker(locker.id, payload, "Locker liberado.");
+    const supabase = getSupabaseClient() || (await waitForSupabase(20, 150));
+    if (!supabase) {
+      setStatus("Supabase no esta disponible.", "error");
+      return;
+    }
+
+    try {
+      await withLockerAction(locker, ["LIBRE"], async () => {
+        setStatus("Registrando DEVOLUCION...", "info");
+        const activeAssignment = await fetchActiveAssignmentByLocker(supabase, lockerId);
+        if (!activeAssignment?.id) {
+          setStatus("No existe una asignacion activa para este locker.", "warn");
+          return;
+        }
+
+        const totalLlaves = getLlavesReales(locker);
+        await insertMovimientoLlaves(supabase, {
+          asignacion_id: activeAssignment.id,
+          tipo: "DEVOLUCION",
+          llaves_declaradas: totalLlaves,
+          llaves_esperadas: totalLlaves,
+          declaracion: "Cierre desde Vista General",
+          firmado: true
+        });
+
+        await loadLockers(true);
+        setStatus("DEVOLUCION registrada. El cierre lo ejecuta automaticamente la BD.", "success");
+      });
+    } catch (error) {
+      setStatus(`Error al registrar DEVOLUCION: ${error?.message || error}`, "error");
+    }
   }
 
   async function handleToggleBlock() {
@@ -1291,42 +1451,52 @@
       return;
     }
 
-    const local =
-      normalizeLocal(dom.localSelect.value) ||
-      normalizeLocal(locker.local) ||
-      state.filters.local ||
-      LOCAL_BASE[0];
-    const estado = normalizeEstado(locker.estado);
-    if (estado === "BLOQUEADO") {
-      const target = locker.colaborador_nombre ? "OCUPADO" : "LIBRE";
-      const meta = STATE_META[target] || STATE_META.LIBRE;
-      const payload = {
-        estado: target,
-        color_estado: meta.color,
-        icono_estado: meta.icon,
-        area: dom.areaSelect.value || normalizeArea(locker.area) || AREA_BASE[0],
-        local,
-        updated_at: new Date().toISOString()
-      };
-      if (!locker.colaborador_nombre) {
-        payload.colaborador_nombre = null;
-        payload.fecha_asignacion = null;
-      }
-      await updateLocker(locker.id, payload, "Locker desbloqueado.");
+    const lockerId = getLockerId(locker);
+    if (!lockerId) {
+      setStatus("El locker seleccionado no tiene id valido.", "error");
       return;
     }
 
-    const blockedMeta = STATE_META.BLOQUEADO;
-    const payload = {
-      estado: "BLOQUEADO",
-      color_estado: blockedMeta.color,
-      icono_estado: blockedMeta.icon,
-      area: dom.areaSelect.value || normalizeArea(locker.area) || AREA_BASE[0],
-      local,
-      updated_at: new Date().toISOString()
-    };
+    const supabase = getSupabaseClient() || (await waitForSupabase(20, 150));
+    if (!supabase) {
+      setStatus("Supabase no esta disponible.", "error");
+      return;
+    }
 
-    await updateLocker(locker.id, payload, "Locker bloqueado.");
+    const estado = normalizeEstado(locker.estado);
+    const isInMaintenance = estado === "MANTENIMIENTO" || estado === "BLOQUEADO";
+    const targetState = isInMaintenance ? ["LIBRE", "OCUPADO"] : ["MANTENIMIENTO"];
+
+    try {
+      await withLockerAction(locker, targetState, async () => {
+        const activeAssignment = await fetchActiveAssignmentByLocker(supabase, lockerId);
+        const fnName = isInMaintenance
+          ? activeAssignment?.id
+            ? "fn_lockers_set_ocupado"
+            : "fn_lockers_set_libre"
+          : "fn_lockers_set_mantenimiento";
+
+        setStatus(
+          isInMaintenance ? "Reactivando locker via funcion canonica..." : "Enviando locker a mantenimiento...",
+          "info"
+        );
+
+        const result = await callLockerRpc(supabase, fnName, lockerId, activeAssignment?.id || null);
+        if (!result.ok) {
+          throw result.error || new Error(`No se pudo ejecutar ${fnName}.`);
+        }
+
+        await loadLockers(true);
+        setStatus(
+          isInMaintenance
+            ? "Locker reactivado por funcion canonica."
+            : "Locker enviado a mantenimiento por funcion canonica.",
+          "success"
+        );
+      });
+    } catch (error) {
+      setStatus(`Error de mantenimiento: ${error?.message || error}`, "error");
+    }
   }
 
   function setPanelOpen(open) {
@@ -1465,8 +1635,10 @@
     const locker = getSelectedLocker();
     if (locker) {
       const estado = normalizeEstado(locker.estado);
-      dom.quickAssign.textContent = estado === "SE_DESCONOCE" ? "Regularizar" : "Asignar";
-      dom.quickBlock.textContent = estado === "BLOQUEADO" ? "Desbloquear" : "Bloquear";
+      dom.quickAssign.textContent = "Aprobar";
+      dom.quickRelease.textContent = "Devolucion";
+      dom.quickBlock.textContent =
+        estado === "MANTENIMIENTO" || estado === "BLOQUEADO" ? "Reactivar" : "Mantenimiento";
     }
 
     const x = event?.clientX || window.innerWidth / 2;
@@ -1487,8 +1659,7 @@
   function handleQuickAssign() {
     closeQuickMenu();
     state.panelLocked = false;
-    renderSelected();
-    dom.nameInput?.focus();
+    handleAssign();
   }
 
   function handleQuickRelease() {

@@ -10,6 +10,12 @@ import {
 } from './usuarioApi.js';
 import './usuario.css';
 
+function getLlavesReales(lockerLike) {
+  const candado = Number(Boolean(lockerLike?.locker_tiene_candado));
+  const duplicado = Number(Boolean(lockerLike?.locker_tiene_duplicado_llave));
+  return candado + duplicado;
+}
+
 export default function UsuarioAsignacionesView({ embedded = false }) {
   const location = useLocation();
   const [loading, setLoading] = useState(true);
@@ -58,7 +64,9 @@ export default function UsuarioAsignacionesView({ embedded = false }) {
           colaborador_dni: normalizeText(colaborador?.dni, 'N/D'),
           locker_codigo: normalizeText(locker?.codigo),
           locker_local: normalizeText(locker?.local),
-          locker_area: normalizeText(locker?.area)
+          locker_area: normalizeText(locker?.area),
+          locker_tiene_candado: Boolean(locker?.tiene_candado),
+          locker_tiene_duplicado_llave: Boolean(locker?.tiene_duplicado_llave)
         };
       });
 
@@ -128,17 +136,21 @@ export default function UsuarioAsignacionesView({ embedded = false }) {
 
     try {
       const supabase = await getClientOrThrow();
-      const { error: closeError } = await supabase
-        .from('asignaciones_locker')
-        .update({
-          activa: false,
-          fecha_liberacion: new Date().toISOString()
-        })
-        .eq('id', selected.id);
+      const llavesReales = getLlavesReales(selected);
+      const { error: closeError } = await supabase.from('llaves_movimientos').insert([
+        {
+          asignacion_id: selected.id,
+          tipo: 'DEVOLUCION',
+          llaves_declaradas: llavesReales,
+          llaves_esperadas: llavesReales,
+          declaracion: 'Cierre desde panel de asignaciones',
+          firmado: true
+        }
+      ]);
 
       if (closeError) throw closeError;
 
-      setSuccessMessage('Asignacion cerrada correctamente.');
+      setSuccessMessage('DEVOLUCION registrada. El cierre lo ejecuta la BD.');
       setSelectedId(null);
       setMovimientos([]);
       setIncidencias([]);
