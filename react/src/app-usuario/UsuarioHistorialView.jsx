@@ -253,7 +253,7 @@ export default function UsuarioHistorialView({ embedded = false }) {
       setRecords(hydrated);
     } catch (err) {
       setRecords([]);
-      setError(err?.message || 'No se pudo cargar el historial de movimientos.');
+      setError(err?.message || 'No se pudo cargar el historial de auditoria.');
     } finally {
       setLoading(false);
     }
@@ -384,7 +384,7 @@ export default function UsuarioHistorialView({ embedded = false }) {
 
       <section className="usuario-card">
         {loading && <p className="usuario-subtle">Cargando historial...</p>}
-        {!loading && filtered.length === 0 && <p className="usuario-warning">No hay movimientos para los filtros seleccionados.</p>}
+        {!loading && filtered.length === 0 && <p className="usuario-warning">No hay eventos para los filtros seleccionados.</p>}
 
         {!loading && filtered.length > 0 && (
           <div className="usuario-table-wrap">

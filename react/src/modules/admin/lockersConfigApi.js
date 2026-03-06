@@ -1,6 +1,7 @@
 import { requireSupabaseClient } from '../../shared/supabaseClient.js';
 
 const LOCALES_TABLE = 'locales';
+const LOCKERS_TABLE = 'lockers';
 const CREATE_LOCKERS_FN = 'admin_crear_lockers';
 const CREATE_LOCKERS_SCHEMA = 'app';
 const SYNC_LOCAL_FN = 'sync_lockers_local_nombre';
@@ -9,6 +10,14 @@ const ID_COLUMNS = ['id', 'local_id', 'id_local', 'localid'];
 const NAME_COLUMNS = ['nombre', 'nombre_local', 'local', 'descripcion'];
 const ACTIVE_COLUMNS = ['activo', 'habilitado', 'enabled'];
 const STATE_COLUMNS = ['estado', 'status'];
+const LOCKER_ID_COLUMNS = ['id', 'locker_id', 'id_locker'];
+const LOCKER_CODE_COLUMNS = ['codigo', 'code', 'locker_code', 'numero', 'nro', 'num'];
+const LOCKER_LOCAL_COLUMNS = ['local', 'nombre_local', 'local_nombre'];
+const LOCKER_LOCAL_ID_COLUMNS = ['local_id', 'id_local', 'localid'];
+const LOCKER_AREA_COLUMNS = ['area', 'zona', 'sector'];
+const LOCKER_STATE_COLUMNS = ['estado', 'status'];
+const LOCKER_ACTIVE_COLUMNS = ['activo', 'habilitado', 'enabled'];
+const LOCKER_CREATED_COLUMNS = ['created_at', 'fecha_creacion', 'fecha_registro'];
 
 function normalizeText(value, fallback = '') {
   const normalized = String(value ?? '').trim();
@@ -74,6 +83,48 @@ function sortLocales(rows) {
   );
 }
 
+function mapLockerRow(row, index = 0) {
+  const idColumn = findExistingColumn(row, LOCKER_ID_COLUMNS) || 'id';
+  const codeColumn = findExistingColumn(row, LOCKER_CODE_COLUMNS) || 'codigo';
+  const stateColumn = findExistingColumn(row, LOCKER_STATE_COLUMNS) || 'estado';
+  const localColumn = findExistingColumn(row, LOCKER_LOCAL_COLUMNS);
+  const areaColumn = findExistingColumn(row, LOCKER_AREA_COLUMNS);
+  const activeColumn = findExistingColumn(row, LOCKER_ACTIVE_COLUMNS);
+  const createdColumn = findExistingColumn(row, LOCKER_CREATED_COLUMNS);
+  const idValue = row?.[idColumn];
+  const stableId = idValue ?? `locker-${index}`;
+
+  return {
+    id: stableId,
+    codigo: normalizeText(row?.[codeColumn], '--'),
+    estado: normalizeText(row?.[stateColumn], '--'),
+    local: normalizeText(row?.[localColumn], ''),
+    area: normalizeText(row?.[areaColumn], ''),
+    activo: readActiveFromRow(row, activeColumn, stateColumn),
+    creado: createdColumn ? row?.[createdColumn] : null,
+    raw: row || {},
+    meta: {
+      idColumn,
+      codeColumn,
+      stateColumn,
+      localColumn,
+      areaColumn,
+      activeColumn,
+      createdColumn,
+      hasRealId: idValue !== null && idValue !== undefined
+    }
+  };
+}
+
+function sortLockers(rows) {
+  return rows.slice().sort((a, b) =>
+    String(a?.codigo || '').localeCompare(String(b?.codigo || ''), 'es', {
+      numeric: true,
+      sensitivity: 'base'
+    })
+  );
+}
+
 function cleanArgs(args = {}) {
   return Object.fromEntries(
     Object.entries(args).filter(([, value]) => value !== undefined && value !== null && value !== '')
@@ -92,6 +143,18 @@ function isRpcMissingSignatureError(error) {
     message.includes('signature') ||
     message.includes('could not find') ||
     message.includes('does not exist')
+  );
+}
+
+function isMissingColumnError(error) {
+  if (!error) return false;
+  const code = String(error?.code || '');
+  const message = String(error?.message || '').toLowerCase();
+  return (
+    code === '42703' ||
+    (message.includes('column') && message.includes('does not exist')) ||
+    message.includes('unknown column') ||
+    message.includes('not found in table')
   );
 }
 
