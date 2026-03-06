@@ -63,6 +63,7 @@
     channel: null,
     active: false,
     loading: false,
+    incidenciaLockerIds: new Set(),
     loadingColumns: new Set(),
     updatedIds: new Set(),
     updateTimers: new Map(),
@@ -89,6 +90,7 @@
   const MODULE_KEY = "lockers";
   const AUTH_SESSION_KEY = "dashboard:auth:session";
   const LOCKERS_READ_SOURCES = ["v_lockers_actual", "vw_locker_estado_general"];
+  const INCIDENCIA_ESTADO_PENDIENTE = "PENDIENTE";
   const SOLICITUDES_ELEGIBLES_ASIGNACION = ["CREADA", "EN_REVISION", "APROBADA"];
   const RPC_ARG_CANDIDATES = [
     (lockerId, asignacionId) => ({ p_locker_id: lockerId, p_asignacion_id: asignacionId }),
@@ -161,6 +163,24 @@
       source: null,
       error: lastError
     };
+  }
+
+  async function fetchPendingIncidenciasByLocker(supabase) {
+    const { data, error } = await supabase
+      .from("incidencias_llaves")
+      .select("locker_id")
+      .eq("estado", INCIDENCIA_ESTADO_PENDIENTE);
+
+    if (error) {
+      console.warn("[lockers] no se pudieron cargar incidencias pendientes", error);
+      return new Set();
+    }
+
+    return new Set(
+      (Array.isArray(data) ? data : [])
+        .map((row) => String(row?.locker_id || "").trim())
+        .filter(Boolean)
+    );
   }
 
   function normalizeEstado(value) {
@@ -564,6 +584,22 @@
     }
   }
 
+  function hasPendingIncidencia(locker) {
+    if (!locker?.id) return false;
+    return state.incidenciaLockerIds.has(String(locker.id));
+  }
+
+  function createIncidenciaIndicator() {
+    const alert = document.createElement("span");
+    alert.className = "area-indicator is-alert is-on";
+    alert.title = "Incidencia de llaves pendiente";
+    const icon = document.createElement("i");
+    icon.className = "fa-solid fa-triangle-exclamation";
+    icon.setAttribute("aria-hidden", "true");
+    alert.appendChild(icon);
+    return alert;
+  }
+
   function renderAreaItem(locker) {
     const meta = getStateMeta(locker.estado);
     const item = document.createElement("button");
@@ -617,6 +653,9 @@
 
     indicators.appendChild(padlock);
     indicators.appendChild(duplicate);
+    if (hasPendingIncidencia(locker)) {
+      indicators.appendChild(createIncidenciaIndicator());
+    }
 
     metaLine.appendChild(stateBadge);
     metaLine.appendChild(indicators);
@@ -625,6 +664,7 @@
     item.appendChild(metaLine);
 
     const labelParts = [locker.colaborador_nombre || "Sin asignacion", locker.codigo || "--", meta.label];
+    if (hasPendingIncidencia(locker)) labelParts.push("Incidencia pendiente");
     item.setAttribute("aria-label", labelParts.join(" - "));
 
     return item;
@@ -683,6 +723,9 @@
 
     indicators.appendChild(padlock);
     indicators.appendChild(duplicate);
+    if (hasPendingIncidencia(locker)) {
+      indicators.appendChild(createIncidenciaIndicator());
+    }
 
     metaWrap.appendChild(stateBadge);
     metaWrap.appendChild(indicators);
@@ -691,6 +734,7 @@
     row.appendChild(metaWrap);
 
     const labelParts = [locker.colaborador_nombre || "Sin asignacion", locker.codigo || "--", meta.label];
+    if (hasPendingIncidencia(locker)) labelParts.push("Incidencia pendiente");
     row.setAttribute("aria-label", labelParts.join(" - "));
 
     return row;
@@ -1036,6 +1080,17 @@
     icon.setAttribute("aria-hidden", "true");
     iconWrap.appendChild(icon);
 
+    if (hasPendingIncidencia(locker)) {
+      const cardAlert = document.createElement("span");
+      cardAlert.className = "card-alert";
+      cardAlert.title = "Incidencia de llaves pendiente";
+      const cardAlertIcon = document.createElement("i");
+      cardAlertIcon.className = "fa-solid fa-triangle-exclamation";
+      cardAlertIcon.setAttribute("aria-hidden", "true");
+      cardAlert.appendChild(cardAlertIcon);
+      card.appendChild(cardAlert);
+    }
+
     card.appendChild(stateLabel);
     card.appendChild(code);
     card.appendChild(assignee);
@@ -1043,6 +1098,7 @@
 
     const labelParts = [locker.codigo || "--", meta.label];
     if (locker.colaborador_nombre) labelParts.push(locker.colaborador_nombre);
+    if (hasPendingIncidencia(locker)) labelParts.push("Incidencia pendiente");
     card.setAttribute("aria-label", labelParts.join(" - "));
     card.setAttribute("aria-pressed", locker.id === state.selectedId ? "true" : "false");
 
@@ -1812,6 +1868,7 @@
     const supabase = await waitForSupabase();
     if (!supabase) {
       state.lockers = [];
+      state.incidenciaLockerIds = new Set();
       state.loading = false;
       unsubscribeRealtime();
       ensureAreaSelectOptions(state.lockers);
@@ -1823,11 +1880,16 @@
       return;
     }
 
-    const { data, error, source } = await fetchLockersRows(supabase);
+    const [{ data, error, source }, incidenciaLockerIds] = await Promise.all([
+      fetchLockersRows(supabase),
+      fetchPendingIncidenciasByLocker(supabase)
+    ]);
+    state.incidenciaLockerIds = incidenciaLockerIds;
 
     if (error) {
       console.error(error);
       state.lockers = [];
+      state.incidenciaLockerIds = new Set();
       state.loading = false;
       unsubscribeRealtime();
       ensureAreaSelectOptions(state.lockers);
@@ -1884,6 +1946,7 @@
     }
     if (eventType === "DELETE" && oldRow) {
       state.lockers = state.lockers.filter((locker) => locker.id !== oldRow.id);
+      state.incidenciaLockerIds.delete(String(oldRow.id));
       if (state.selectedId === oldRow.id) state.selectedId = null;
     }
 

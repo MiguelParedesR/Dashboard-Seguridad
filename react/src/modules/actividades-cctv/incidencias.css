@@ -1,44 +1,31 @@
-.incidencias {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+.incidencias-page {
+  gap: 14px;
 }
 
-.incidencias-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+.incidencias-scope {
+  margin: 10px 0 0;
 }
 
-.incidencias-frame-wrap {
-  padding: 0;
-  overflow: hidden;
+.incidencias-table {
+  min-width: 920px;
 }
 
-.incidencias-frame {
-  display: block;
-  width: 100%;
-  min-height: 72vh;
-  height: calc(100vh - 170px);
-  border: 0;
-  background: #ffffff;
+.incidencias-table .estado-chip.pendiente {
+  background: rgba(234, 179, 8, 0.2);
+  color: #854d0e;
 }
 
-@media (max-width: 960px) {
-  .incidencias-frame {
-    height: calc(100vh - 210px);
-  }
+.incidencias-table .estado-chip.resuelta {
+  background: rgba(22, 163, 74, 0.18);
+  color: #14532d;
 }
 
-@media (max-width: 640px) {
-  .incidencias-header {
-    flex-direction: column;
-    align-items: flex-start;
+@media (max-width: 860px) {
+  .incidencias-table {
+    min-width: 0;
   }
 
-  .incidencias-frame {
-    min-height: 68vh;
-    height: calc(100vh - 260px);
+  .incidencias-table td[data-label='Accion'] .usuario-button {
+    width: 100%;
   }
 }

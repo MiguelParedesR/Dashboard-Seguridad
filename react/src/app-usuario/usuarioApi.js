@@ -134,6 +134,28 @@ export async function fetchRowsByAsignacion(supabase, table, asignacionId) {
   return fallback.data || [];
 }
 
+export async function getIncidenciasLlaves() {
+  const supabase = await getClientOrThrow();
+  const { data, error } = await supabase
+    .from('incidencias_llaves')
+    .select(
+      `
+      id,
+      locker_id,
+      asignacion_id,
+      estado,
+      llaves_esperadas,
+      llaves_devueltas,
+      created_at,
+      detalle
+    `
+    )
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return Array.isArray(data) ? data : [];
+}
+
 export function formatDateTime(value) {
   if (!value) return '--';
   const date = new Date(value);
