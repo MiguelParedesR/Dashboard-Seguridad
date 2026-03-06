@@ -307,9 +307,10 @@ export async function fetchLockersByLocal(local) {
   const client = await requireSupabaseClient();
   const localId = local?.raw?.[local?.meta?.idColumn || 'id'] ?? local?.id;
   const localNombre = normalizeText(local?.nombre);
+  const hasRealId = local?.meta?.hasRealId !== false;
   const candidates = [];
 
-  if (localId !== null && localId !== undefined && localId !== '') {
+  if (hasRealId && localId !== null && localId !== undefined && localId !== '') {
     LOCKER_LOCAL_ID_COLUMNS.forEach((column) => {
       candidates.push({ column, value: localId });
     });

@@ -450,6 +450,67 @@ export default function LockersConfigView() {
           </div>
         )}
       </div>
+
+      <div className="card config-table-card">
+        <div className="config-table-header">
+          <div>
+            <h3>Lockers generados</h3>
+            <p className="muted">
+              {selectedLocal ? `Local seleccionado: ${selectedLocal.nombre}` : 'Selecciona un local para ver lockers.'}
+            </p>
+          </div>
+          <div className="config-actions">
+            <span className="muted">{lockersLoading ? 'Cargando...' : `${lockers.length} lockers`}</span>
+            <button
+              className="btn ghost"
+              type="button"
+              onClick={() => loadLockers()}
+              disabled={lockersLoading || !selectedLocal}
+            >
+              {lockersLoading ? 'Actualizando...' : 'Actualizar'}
+            </button>
+          </div>
+        </div>
+
+        {lockersError && <div className="config-feedback error">{lockersError}</div>}
+
+        {!selectedLocal ? (
+          <p className="muted">Selecciona un local para ver lockers.</p>
+        ) : lockersLoading ? (
+          <p className="muted">Cargando lockers...</p>
+        ) : lockers.length === 0 ? (
+          <p className="muted">No hay lockers para este local.</p>
+        ) : (
+          <div className="config-table-wrap">
+            <table className="config-table">
+              <thead>
+                <tr>
+                  <th>Codigo</th>
+                  <th>Estado</th>
+                  <th>Area</th>
+                  <th>Local</th>
+                  <th>Activo</th>
+                </tr>
+              </thead>
+              <tbody>
+                {lockers.map((locker) => (
+                  <tr key={locker.id}>
+                    <td><strong>{locker.codigo || '--'}</strong></td>
+                    <td>{locker.estado || '--'}</td>
+                    <td>{locker.area || '--'}</td>
+                    <td>{locker.local || selectedLocal?.nombre || '--'}</td>
+                    <td>
+                      <span className={`status ${locker.activo ? 'activo' : 'inactivo'}`}>
+                        {locker.activo ? 'Activo' : 'Inactivo'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </section>
   );
 }

@@ -13,7 +13,7 @@ import { ColaboradorProvider } from '../app-colaborador/context/ColaboradorConte
 import ProtectedColaboradorRoute from '../app-colaborador/routes/ProtectedColaboradorRoute.jsx';
 import IncidenciasView from '../modules/actividades-cctv/IncidenciasView.jsx';
 import AdminView from '../modules/admin/AdminView.jsx';
-import LockersConfigView from '../modules/admin/LockersConfigView.jsx';
+import AdminConfiguracionLockers from '../modules/admin/AdminConfiguracionLockers.jsx';
 import NoticiasView from '../modules/admin/NoticiasView.jsx';
 import DashboardView from '../modules/dashboard/DashboardView.jsx';
 import LockersView from '../modules/lockers/LockersView.jsx';
@@ -182,7 +182,7 @@ const router = createHashRouter([
       },
       {
         path: 'html/admin/lockers-config.html',
-        element: <LockersConfigView />
+        element: <AdminConfiguracionLockers />
       },
       {
         path: 'html/penalidades/penalidades.html',
