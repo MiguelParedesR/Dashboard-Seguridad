@@ -1250,10 +1250,16 @@
     return locker.id;
   }
 
-  function getLlavesReales(locker) {
+  function getLlavesEsperadas(locker) {
     const candado = Number(Boolean(locker?.tiene_candado));
     const duplicado = Number(Boolean(locker?.tiene_duplicado_llave));
     return candado + duplicado;
+  }
+
+  function getLlavesDeclaradasBase(locker) {
+    const candado = Boolean(locker?.tiene_candado);
+    const duplicado = Boolean(locker?.tiene_duplicado_llave);
+    return Number(candado || duplicado);
   }
 
   function isRpcFunctionMissing(error) {
@@ -1470,7 +1476,8 @@
           return;
         }
 
-        const totalLlaves = getLlavesReales(locker);
+        const llavesEsperadas = getLlavesEsperadas(locker);
+        const llavesDeclaradas = getLlavesDeclaradasBase(locker);
         const operadorId = getOperadorIdFromDashboardSession();
         if (!operadorId) {
           throw new Error("No se encontro operador autenticado para registrar la devolucion.");
@@ -1478,8 +1485,8 @@
 
         const { error: rpcError } = await supabase.rpc("rpc_registrar_devolucion", {
           p_asignacion_id: activeAssignment.id,
-          p_llaves_declaradas: totalLlaves,
-          p_llaves_esperadas: totalLlaves,
+          p_llaves_declaradas: llavesDeclaradas,
+          p_llaves_esperadas: llavesEsperadas,
           p_foto_url: null,
           p_operador_id: operadorId
         });

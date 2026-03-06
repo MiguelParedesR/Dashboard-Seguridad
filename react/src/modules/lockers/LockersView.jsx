@@ -207,7 +207,7 @@ export default function LockersView() {
           <div className="lockers-integrated-header">
             <div>
               <p className="hero-kicker">Operaciones integradas</p>
-              <h2>Asignaciones e historial en Vista General</h2>
+              <h2>Asignaciones e historial auditado en Vista General</h2>
             </div>
             <div className="lockers-integrated-tabs" role="tablist" aria-label="Panel integrado de lockers">
               <button

@@ -33,10 +33,38 @@ export function getOperadorIdOrThrow() {
   return operadorId;
 }
 
+function resolveLockerKeyFlags(lockerLike) {
+  const candado = Boolean(lockerLike?.tiene_candado ?? lockerLike?.locker_tiene_candado);
+  const duplicado = Boolean(lockerLike?.tiene_duplicado_llave ?? lockerLike?.locker_tiene_duplicado_llave);
+  return { candado, duplicado };
+}
+
+export function getLlavesEsperadas(lockerLike) {
+  const { candado, duplicado } = resolveLockerKeyFlags(lockerLike);
+  return Number(candado) + Number(duplicado);
+}
+
+export function getLlavesDeclaradasBase(lockerLike) {
+  const { candado, duplicado } = resolveLockerKeyFlags(lockerLike);
+  return Number(candado || duplicado);
+}
+
+export function parseLlavesDeclaradas(value) {
+  const match = String(value || '').match(/\d+/);
+  if (!match) return null;
+  const parsed = Number.parseInt(match[0], 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
+export function getLlavesDeclaradasFromInput(inputValue, lockerLike) {
+  const parsed = parseLlavesDeclaradas(inputValue);
+  if (parsed !== null) return parsed;
+  return getLlavesDeclaradasBase(lockerLike);
+}
+
 export function getLlavesReales(lockerLike) {
-  const candado = Number(Boolean(lockerLike?.tiene_candado ?? lockerLike?.locker_tiene_candado));
-  const duplicado = Number(Boolean(lockerLike?.tiene_duplicado_llave ?? lockerLike?.locker_tiene_duplicado_llave));
-  return candado + duplicado;
+  // Alias historico: "llaves reales" equivale al valor esperado por configuracion del locker.
+  return getLlavesEsperadas(lockerLike);
 }
 
 export function uniqueIds(values) {

@@ -6,7 +6,8 @@ import {
   fetchRowsByAsignacion,
   formatDateTime,
   getClientOrThrow,
-  getLlavesReales,
+  getLlavesDeclaradasBase,
+  getLlavesEsperadas,
   getOperadorIdOrThrow,
   normalizeText
 } from './usuarioApi.js';
@@ -132,12 +133,13 @@ export default function UsuarioAsignacionesView({ embedded = false }) {
 
     try {
       const supabase = await getClientOrThrow();
-      const llavesReales = getLlavesReales(selected);
+      const llavesEsperadas = getLlavesEsperadas(selected);
+      const llavesDeclaradas = getLlavesDeclaradasBase(selected);
       const operadorId = getOperadorIdOrThrow();
       const { error: closeError } = await supabase.rpc('rpc_registrar_devolucion', {
         p_asignacion_id: selected.id,
-        p_llaves_declaradas: llavesReales,
-        p_llaves_esperadas: llavesReales,
+        p_llaves_declaradas: llavesDeclaradas,
+        p_llaves_esperadas: llavesEsperadas,
         p_foto_url: null,
         p_operador_id: operadorId
       });
@@ -240,13 +242,14 @@ export default function UsuarioAsignacionesView({ embedded = false }) {
                 </div>
               </div>
 
-              {detailLoading && <p className="usuario-subtle">Cargando movimientos e incidencias...</p>}
+              {detailLoading && <p className="usuario-subtle">Cargando detalle tecnico e incidencias...</p>}
 
               {!detailLoading && (
                 <>
                   <div className="usuario-detail-block">
-                    <h3>Historial llaves_movimientos</h3>
-                    {movimientos.length === 0 && <p className="usuario-subtle">Sin movimientos registrados.</p>}
+                    <h3>Detalle tecnico (llaves_movimientos)</h3>
+                    <p className="usuario-subtle">El historial auditado principal se consulta en la pestana Historial.</p>
+                    {movimientos.length === 0 && <p className="usuario-subtle">Sin detalle tecnico registrado.</p>}
                     {movimientos.length > 0 && (
                       <table className="usuario-table-inline">
                         <thead>

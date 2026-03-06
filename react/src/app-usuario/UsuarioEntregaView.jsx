@@ -5,7 +5,8 @@ import {
   fetchLockersByIds,
   formatDateTime,
   getClientOrThrow,
-  getLlavesReales,
+  getLlavesDeclaradasBase,
+  getLlavesEsperadas,
   getOperadorIdOrThrow,
   normalizeText,
   uploadImageToLockers
@@ -67,7 +68,14 @@ export default function UsuarioEntregaView() {
     };
   }, [asignacionId]);
 
-  const totalLlavesVisual = useMemo(() => getLlavesReales(locker), [locker?.tiene_candado, locker?.tiene_duplicado_llave]);
+  const llavesEsperadas = useMemo(
+    () => getLlavesEsperadas(locker),
+    [locker?.tiene_candado, locker?.tiene_duplicado_llave]
+  );
+  const llavesDeclaradas = useMemo(
+    () => getLlavesDeclaradasBase(locker),
+    [locker?.tiene_candado, locker?.tiene_duplicado_llave]
+  );
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -98,8 +106,8 @@ export default function UsuarioEntregaView() {
       const operadorId = getOperadorIdOrThrow();
       const { error: rpcError } = await supabase.rpc('rpc_registrar_entrega', {
         p_asignacion_id: asignacion.id,
-        p_llaves_declaradas: totalLlavesVisual,
-        p_llaves_esperadas: totalLlavesVisual,
+        p_llaves_declaradas: llavesDeclaradas,
+        p_llaves_esperadas: llavesEsperadas,
         p_foto_url: fotoEntregaUrl,
         p_operador_id: operadorId
       });
@@ -158,7 +166,7 @@ export default function UsuarioEntregaView() {
               </div>
               <div className="usuario-detail-item">
                 <span>Total llaves esperadas (real)</span>
-                <strong>{totalLlavesVisual}</strong>
+                <strong>{llavesEsperadas}</strong>
               </div>
               <div className="usuario-detail-item">
                 <span>Referencia duplicado</span>
@@ -204,7 +212,7 @@ export default function UsuarioEntregaView() {
                 onChange={(event) => setConfirmEntrega(event.target.checked)}
                 disabled={submitting || loading}
               />
-              Confirmo que entrego {totalLlavesVisual} llave{totalLlavesVisual === 1 ? '' : 's'}
+              Confirmo que entrego {llavesDeclaradas} llave{llavesDeclaradas === 1 ? '' : 's'}
             </label>
 
             <label className="usuario-check" htmlFor="check-respaldo">

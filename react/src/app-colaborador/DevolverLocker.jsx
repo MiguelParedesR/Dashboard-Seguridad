@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useColaboradorContext } from './context/ColaboradorContext.jsx';
 import CameraGuide from './components/CameraGuide.jsx';
 import { requireSupabaseClient } from '../shared/supabaseClient.js';
+import { getLlavesDeclaradasFromInput, getLlavesEsperadas } from '../app-usuario/usuarioApi.js';
 import './colaborador.css';
 
 const STORAGE_BUCKET = import.meta.env.VITE_SUPABASE_LOCKERS_BUCKET;
@@ -31,12 +32,6 @@ async function uploadImage(supabase, file, folder, collaboratorId) {
   const publicUrl = data?.publicUrl;
   if (!publicUrl) throw new Error('No se pudo obtener la URL publica de la imagen.');
   return publicUrl;
-}
-
-function getLlavesReales(locker) {
-  const candado = Number(Boolean(locker?.tiene_candado));
-  const duplicado = Number(Boolean(locker?.tiene_duplicado_llave));
-  return candado + duplicado;
 }
 
 function getOperadorIdFromColaboradorSession(session) {
@@ -137,12 +132,13 @@ export default function DevolverLocker() {
         session.colaborador_id
       );
 
-      const llavesReales = getLlavesReales(lockerMeta);
+      const llavesEsperadas = getLlavesEsperadas(lockerMeta);
+      const llavesDeclaradas = getLlavesDeclaradasFromInput(declaracion, lockerMeta);
       const operadorId = getOperadorIdFromColaboradorSession(session);
       const { error: movimientoError } = await supabase.rpc('rpc_registrar_devolucion', {
         p_asignacion_id: asignacionActiva.id,
-        p_llaves_declaradas: llavesReales,
-        p_llaves_esperadas: llavesReales,
+        p_llaves_declaradas: llavesDeclaradas,
+        p_llaves_esperadas: llavesEsperadas,
         p_foto_url: fotoLlavesUrl,
         p_operador_id: operadorId
       });

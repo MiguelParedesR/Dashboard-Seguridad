@@ -312,7 +312,7 @@ export default function UsuarioHistorialView({ embedded = false }) {
         <div className="usuario-header">
           <div>
             <h1>Historial</h1>
-            <p>Consulta de auditoria del sistema (solo lectura).</p>
+            <p>Consulta de auditoria del sistema desde historial_locker (solo lectura).</p>
           </div>
           <button className="usuario-ghost-button" type="button" onClick={loadHistorial} disabled={loading}>
             {loading ? 'Actualizando...' : 'Actualizar'}
