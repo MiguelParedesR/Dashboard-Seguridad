@@ -87,8 +87,8 @@
   let scrollTicking = false;
 
   const MODULE_KEY = "lockers";
+  const AUTH_SESSION_KEY = "dashboard:auth:session";
   const LOCKERS_READ_SOURCES = ["v_lockers_actual", "vw_locker_estado_general"];
-  const SOLICITUDES_PENDIENTES = ["CREADA", "EN_REVISION"];
   const SOLICITUDES_ELEGIBLES_ASIGNACION = ["CREADA", "EN_REVISION", "APROBADA"];
   const RPC_ARG_CANDIDATES = [
     (lockerId, asignacionId) => ({ p_locker_id: lockerId, p_asignacion_id: asignacionId }),
@@ -116,6 +116,17 @@
     const waiter = window.CONFIG?.SUPABASE?.waitForClient;
     if (typeof waiter !== "function") return Promise.resolve(null);
     return waiter(dbKey, { maxAttempts, waitMs });
+  }
+
+  function getOperadorIdFromDashboardSession() {
+    try {
+      const raw = window.sessionStorage?.getItem(AUTH_SESSION_KEY);
+      if (!raw) return "";
+      const parsed = JSON.parse(raw);
+      return String(parsed?.user?.id || "").trim();
+    } catch (err) {
+      return "";
+    }
   }
 
   function isMissingRelationError(error) {
@@ -1269,17 +1280,14 @@
     return Array.isArray(data) ? data[0] || null : null;
   }
 
-  async function ensureSolicitudAprobada(supabase, solicitud) {
-    if (!solicitud) return null;
-    if (!SOLICITUDES_PENDIENTES.includes(solicitud.estado)) return solicitud;
-
-    const { error } = await supabase
-      .from("solicitudes_locker")
-      .update({ estado: "APROBADA" })
-      .eq("id", solicitud.id);
-
-    if (error) throw error;
-    return { ...solicitud, estado: "APROBADA" };
+  function extractAsignacionIdFromRpc(data) {
+    if (!data) return "";
+    if (typeof data === "string" || typeof data === "number") return String(data).trim();
+    if (Array.isArray(data)) return extractAsignacionIdFromRpc(data[0]);
+    if (typeof data === "object") {
+      return String(data.asignacion_id || data.asignacionId || data.p_asignacion_id || data.id || "").trim();
+    }
+    return "";
   }
 
   async function fetchAssignmentBySolicitud(supabase, solicitudId) {
@@ -1292,43 +1300,6 @@
 
     if (error) throw error;
     return Array.isArray(data) ? data[0] || null : null;
-  }
-
-  async function ensureAssignmentFromSolicitud(supabase, solicitud) {
-    const activeByLocker = await fetchActiveAssignmentByLocker(supabase, solicitud.locker_id);
-    if (activeByLocker) return activeByLocker;
-
-    const { data, error } = await supabase
-      .from("asignaciones_locker")
-      .insert([
-        {
-          solicitud_id: solicitud.id,
-          colaborador_id: solicitud.colaborador_id,
-          locker_id: solicitud.locker_id,
-          activa: true
-        }
-      ])
-      .select("id,solicitud_id,colaborador_id,locker_id,activa,fecha_asignacion")
-      .maybeSingle();
-
-    if (!error && data) {
-      return data;
-    }
-
-    const code = String(error?.code || "");
-    const message = String(error?.message || "").toLowerCase();
-    if (code === "23505" || message.includes("duplicate")) {
-      const existing = await fetchAssignmentBySolicitud(supabase, solicitud.id);
-      if (existing) return existing;
-    }
-
-    if (error) throw error;
-    throw new Error("No se pudo crear la asignacion.");
-  }
-
-  async function insertMovimientoLlaves(supabase, payload) {
-    const { error } = await supabase.from("llaves_movimientos").insert([payload]);
-    if (error) throw error;
   }
 
   async function withLockerAction(locker, targetStates, handler) {
@@ -1386,12 +1357,29 @@
           return;
         }
 
-        const solicitudAprobada = await ensureSolicitudAprobada(supabase, solicitud);
-        const asignacion = await ensureAssignmentFromSolicitud(supabase, solicitudAprobada);
+        const operadorId = getOperadorIdFromDashboardSession();
+        if (!operadorId) {
+          throw new Error("No se encontro operador autenticado para aprobar la solicitud.");
+        }
+
+        const { data: rpcData, error: rpcError } = await supabase.rpc("rpc_aprobar_solicitud", {
+          p_solicitud_id: solicitud.id,
+          p_operador_id: operadorId
+        });
+        if (rpcError) throw rpcError;
+
+        let asignacionId = extractAsignacionIdFromRpc(rpcData);
+        if (!asignacionId) {
+          const asignacionExistente = await fetchAssignmentBySolicitud(supabase, solicitud.id);
+          asignacionId = String(asignacionExistente?.id || "").trim();
+        }
+        if (!asignacionId) {
+          throw new Error("No se pudo obtener la asignacion creada.");
+        }
 
         await loadLockers(true);
         setStatus("Solicitud aprobada y asignacion creada. Continua con ENTREGA.", "success");
-        navigateToEntrega(asignacion.id, solicitudAprobada.id);
+        navigateToEntrega(asignacionId, solicitud.id);
       });
     } catch (error) {
       setStatus(`Error en aprobacion: ${error?.message || error}`, "error");
@@ -1427,14 +1415,19 @@
         }
 
         const totalLlaves = getLlavesReales(locker);
-        await insertMovimientoLlaves(supabase, {
-          asignacion_id: activeAssignment.id,
-          tipo: "DEVOLUCION",
-          llaves_declaradas: totalLlaves,
-          llaves_esperadas: totalLlaves,
-          declaracion: "Cierre desde Vista General",
-          firmado: true
+        const operadorId = getOperadorIdFromDashboardSession();
+        if (!operadorId) {
+          throw new Error("No se encontro operador autenticado para registrar la devolucion.");
+        }
+
+        const { error: rpcError } = await supabase.rpc("rpc_registrar_devolucion", {
+          p_asignacion_id: activeAssignment.id,
+          p_llaves_declaradas: totalLlaves,
+          p_llaves_esperadas: totalLlaves,
+          p_foto_url: null,
+          p_operador_id: operadorId
         });
+        if (rpcError) throw rpcError;
 
         await loadLockers(true);
         setStatus("DEVOLUCION registrada. El cierre lo ejecuta automaticamente la BD.", "success");

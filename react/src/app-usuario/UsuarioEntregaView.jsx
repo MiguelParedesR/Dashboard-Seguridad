@@ -1,25 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   fetchColaboradoresByIds,
   fetchLockersByIds,
   formatDateTime,
   getClientOrThrow,
+  getLlavesReales,
+  getOperadorIdOrThrow,
   normalizeText,
   uploadImageToLockers
 } from './usuarioApi.js';
 import './usuario.css';
 
-function getLlavesReales(locker) {
-  const candado = Number(Boolean(locker?.tiene_candado));
-  const duplicado = Number(Boolean(locker?.tiene_duplicado_llave));
-  return candado + duplicado;
-}
-
 export default function UsuarioEntregaView() {
   const navigate = useNavigate();
   const { asignacionId } = useParams();
-  const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -100,32 +95,15 @@ export default function UsuarioEntregaView() {
       );
 
       await uploadImageToLockers(supabase, fotoRespaldo, 'entregas-respaldo', asignacion.id);
-
-      const { error: insertError } = await supabase.from('llaves_movimientos').insert([
-        {
-          asignacion_id: asignacion.id,
-          tipo: 'ENTREGA',
-          llaves_declaradas: totalLlavesVisual,
-          llaves_esperadas: totalLlavesVisual,
-          foto_llaves_url: fotoEntregaUrl,
-          declaracion: 'Entrega inicial',
-          firmado: true
-        }
-      ]);
-
-      if (insertError) throw insertError;
-
-      const solicitudId = asignacion.solicitud_id || searchParams.get('solicitud');
-      if (!solicitudId) {
-        throw new Error('No se encontro la solicitud relacionada para finalizar el flujo.');
-      }
-
-      const { error: solicitudError } = await supabase
-        .from('solicitudes_locker')
-        .update({ estado: 'ASIGNADA' })
-        .eq('id', solicitudId);
-
-      if (solicitudError) throw solicitudError;
+      const operadorId = getOperadorIdOrThrow();
+      const { error: rpcError } = await supabase.rpc('rpc_registrar_entrega', {
+        p_asignacion_id: asignacion.id,
+        p_llaves_declaradas: totalLlavesVisual,
+        p_llaves_esperadas: totalLlavesVisual,
+        p_foto_url: fotoEntregaUrl,
+        p_operador_id: operadorId
+      });
+      if (rpcError) throw rpcError;
 
       navigate('/lockers/vista?panel=asignaciones', {
         replace: true,

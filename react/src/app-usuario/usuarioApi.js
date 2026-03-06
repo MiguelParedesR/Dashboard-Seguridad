@@ -1,4 +1,5 @@
 import { getSupabaseClient } from '../shared/supabaseClient.js';
+import { getAuthSession } from '../services/sessionAuth.js';
 
 export const STORAGE_BUCKET = 'lockers';
 
@@ -16,6 +17,26 @@ export async function getClientOrThrow() {
     throw new Error('No se pudo inicializar el cliente de datos.');
   }
   return supabase;
+}
+
+export function getOperadorIdFromAuthSession() {
+  const session = getAuthSession();
+  const rawId = session?.user?.id;
+  return String(rawId || '').trim();
+}
+
+export function getOperadorIdOrThrow() {
+  const operadorId = getOperadorIdFromAuthSession();
+  if (!operadorId) {
+    throw new Error('No se encontro operador autenticado para ejecutar la operacion.');
+  }
+  return operadorId;
+}
+
+export function getLlavesReales(lockerLike) {
+  const candado = Number(Boolean(lockerLike?.tiene_candado ?? lockerLike?.locker_tiene_candado));
+  const duplicado = Number(Boolean(lockerLike?.tiene_duplicado_llave ?? lockerLike?.locker_tiene_duplicado_llave));
+  return candado + duplicado;
 }
 
 export function uniqueIds(values) {

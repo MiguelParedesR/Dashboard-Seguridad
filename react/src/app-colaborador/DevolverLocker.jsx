@@ -39,6 +39,14 @@ function getLlavesReales(locker) {
   return candado + duplicado;
 }
 
+function getOperadorIdFromColaboradorSession(session) {
+  const operadorId = String(session?.colaborador_id || '').trim();
+  if (!operadorId) {
+    throw new Error('No se encontro colaborador autenticado para registrar la devolucion.');
+  }
+  return operadorId;
+}
+
 export default function DevolverLocker() {
   const navigate = useNavigate();
   const { session } = useColaboradorContext();
@@ -129,17 +137,15 @@ export default function DevolverLocker() {
         session.colaborador_id
       );
 
-      const { error: movimientoError } = await supabase.from('llaves_movimientos').insert([
-        {
-          asignacion_id: asignacionActiva.id,
-          tipo: 'DEVOLUCION',
-          llaves_declaradas: getLlavesReales(lockerMeta),
-          llaves_esperadas: getLlavesReales(lockerMeta),
-          foto_llaves_url: fotoLlavesUrl,
-          declaracion: declaracion.trim(),
-          firmado: true
-        }
-      ]);
+      const llavesReales = getLlavesReales(lockerMeta);
+      const operadorId = getOperadorIdFromColaboradorSession(session);
+      const { error: movimientoError } = await supabase.rpc('rpc_registrar_devolucion', {
+        p_asignacion_id: asignacionActiva.id,
+        p_llaves_declaradas: llavesReales,
+        p_llaves_esperadas: llavesReales,
+        p_foto_url: fotoLlavesUrl,
+        p_operador_id: operadorId
+      });
 
       if (movimientoError) throw movimientoError;
 

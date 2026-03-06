@@ -6,15 +6,11 @@ import {
   fetchRowsByAsignacion,
   formatDateTime,
   getClientOrThrow,
+  getLlavesReales,
+  getOperadorIdOrThrow,
   normalizeText
 } from './usuarioApi.js';
 import './usuario.css';
-
-function getLlavesReales(lockerLike) {
-  const candado = Number(Boolean(lockerLike?.locker_tiene_candado));
-  const duplicado = Number(Boolean(lockerLike?.locker_tiene_duplicado_llave));
-  return candado + duplicado;
-}
 
 export default function UsuarioAsignacionesView({ embedded = false }) {
   const location = useLocation();
@@ -137,17 +133,14 @@ export default function UsuarioAsignacionesView({ embedded = false }) {
     try {
       const supabase = await getClientOrThrow();
       const llavesReales = getLlavesReales(selected);
-      const { error: closeError } = await supabase.from('llaves_movimientos').insert([
-        {
-          asignacion_id: selected.id,
-          tipo: 'DEVOLUCION',
-          llaves_declaradas: llavesReales,
-          llaves_esperadas: llavesReales,
-          declaracion: 'Cierre desde panel de asignaciones',
-          firmado: true
-        }
-      ]);
-
+      const operadorId = getOperadorIdOrThrow();
+      const { error: closeError } = await supabase.rpc('rpc_registrar_devolucion', {
+        p_asignacion_id: selected.id,
+        p_llaves_declaradas: llavesReales,
+        p_llaves_esperadas: llavesReales,
+        p_foto_url: null,
+        p_operador_id: operadorId
+      });
       if (closeError) throw closeError;
 
       setSuccessMessage('DEVOLUCION registrada. El cierre lo ejecuta la BD.');

@@ -5,6 +5,7 @@ import {
   fetchLockersByIds,
   formatDateTime,
   getClientOrThrow,
+  getOperadorIdOrThrow,
   normalizeText
 } from './usuarioApi.js';
 import './usuario.css';
@@ -16,6 +17,16 @@ function toEstadoClass(estado) {
     .trim()
     .toLowerCase()
     .replace(/\s+/g, '_');
+}
+
+function extractAsignacionIdFromRpc(data) {
+  if (!data) return '';
+  if (typeof data === 'string' || typeof data === 'number') return String(data).trim();
+  if (Array.isArray(data)) return extractAsignacionIdFromRpc(data[0]);
+  if (typeof data === 'object') {
+    return String(data.asignacion_id || data.asignacionId || data.p_asignacion_id || data.id || '').trim();
+  }
+  return '';
 }
 
 export default function UsuarioSolicitudesView() {
@@ -141,31 +152,30 @@ export default function UsuarioSolicitudesView() {
 
     try {
       const supabase = await getClientOrThrow();
+      const operadorId = getOperadorIdOrThrow();
 
-      const { error: updateError } = await supabase
-        .from('solicitudes_locker')
-        .update({ estado: 'APROBADA' })
-        .eq('id', selected.id);
+      const { data: rpcData, error: rpcError } = await supabase.rpc('rpc_aprobar_solicitud', {
+        p_solicitud_id: selected.id,
+        p_operador_id: operadorId
+      });
 
-      if (updateError) throw updateError;
+      if (rpcError) throw rpcError;
 
-      const { data: asignacion, error: insertError } = await supabase
-        .from('asignaciones_locker')
-        .insert([
-          {
-            solicitud_id: selected.id,
-            colaborador_id: selected.colaborador_id,
-            locker_id: selected.locker_id,
-            activa: true
-          }
-        ])
-        .select('id,solicitud_id')
-        .single();
+      let asignacionId = extractAsignacionIdFromRpc(rpcData);
+      if (!asignacionId) {
+        const { data: asignacion, error: asignacionError } = await supabase
+          .from('asignaciones_locker')
+          .select('id')
+          .eq('solicitud_id', selected.id)
+          .order('fecha_asignacion', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (asignacionError) throw asignacionError;
+        asignacionId = String(asignacion?.id || '').trim();
+      }
+      if (!asignacionId) throw new Error('No se pudo obtener la asignacion creada.');
 
-      if (insertError) throw insertError;
-      if (!asignacion?.id) throw new Error('No se pudo obtener la asignacion creada.');
-
-      navigate(`/lockers/solicitudes/entrega/${asignacion.id}?solicitud=${selected.id}`, {
+      navigate(`/lockers/solicitudes/entrega/${asignacionId}?solicitud=${selected.id}`, {
         replace: true
       });
     } catch (err) {
