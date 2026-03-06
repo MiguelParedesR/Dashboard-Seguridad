@@ -46,14 +46,6 @@ export default function UsuarioLoginView() {
       setError('Ingresa un DNI valido.');
       return;
     }
-    if (!selectedUsuario.dni) {
-      setError('El usuario seleccionado no tiene DNI registrado.');
-      return;
-    }
-    if (typedDni !== selectedUsuario.dni) {
-      setError('DNI incorrecto para el usuario seleccionado.');
-      return;
-    }
 
     setSubmitting(true);
     setError('');

@@ -303,6 +303,49 @@ export async function fetchLocales() {
   return sortLocales(mapped);
 }
 
+export async function fetchLockersByLocal(local) {
+  const client = await requireSupabaseClient();
+  const localId = local?.raw?.[local?.meta?.idColumn || 'id'] ?? local?.id;
+  const localNombre = normalizeText(local?.nombre);
+  const candidates = [];
+
+  if (localId !== null && localId !== undefined && localId !== '') {
+    LOCKER_LOCAL_ID_COLUMNS.forEach((column) => {
+      candidates.push({ column, value: localId });
+    });
+  }
+
+  if (localNombre) {
+    LOCKER_LOCAL_COLUMNS.forEach((column) => {
+      candidates.push({ column, value: localNombre });
+    });
+  }
+
+  if (candidates.length === 0) {
+    return [];
+  }
+
+  let lastError = null;
+  for (const candidate of candidates) {
+    const { data, error } = await client
+      .from(LOCKERS_TABLE)
+      .select('*')
+      .eq(candidate.column, candidate.value);
+
+    if (!error) {
+      const mapped = (Array.isArray(data) ? data : []).map((row, index) => mapLockerRow(row, index));
+      return sortLockers(mapped);
+    }
+
+    lastError = error;
+    if (!isMissingColumnError(error)) {
+      break;
+    }
+  }
+
+  throw lastError || new Error('No se pudieron cargar los lockers.');
+}
+
 export async function createLocal(nombre) {
   const client = await requireSupabaseClient();
   const cleanName = normalizeText(nombre);

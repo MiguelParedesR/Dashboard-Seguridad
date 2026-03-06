@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   createLocal,
   fetchLocales,
+  fetchLockersByLocal,
   generarLockersPorLocal,
   renameLocal,
   setLocalActive
@@ -37,6 +38,9 @@ export default function LockersConfigView() {
   const [generateCantidad, setGenerateCantidad] = useState('24');
   const [generatePrefijo, setGeneratePrefijo] = useState('');
   const [generating, setGenerating] = useState(false);
+  const [lockers, setLockers] = useState([]);
+  const [lockersLoading, setLockersLoading] = useState(false);
+  const [lockersError, setLockersError] = useState('');
 
   useEffect(() => {
     document.title = 'Configuracion de Lockers';
@@ -72,9 +76,42 @@ export default function LockersConfigView() {
     }
   };
 
+  const loadLockers = async (options = {}) => {
+    const { silent = false } = options;
+    if (!selectedLocal) {
+      setLockers([]);
+      setLockersError('');
+      setLockersLoading(false);
+      return;
+    }
+    if (!silent) {
+      setLockersLoading(true);
+    }
+    setLockersError('');
+
+    try {
+      const rows = await fetchLockersByLocal(selectedLocal);
+      setLockers(rows);
+    } catch (err) {
+      setLockers([]);
+      setLockersError(getErrorMessage(err, 'No se pudieron cargar los lockers.'));
+    } finally {
+      if (!silent) setLockersLoading(false);
+    }
+  };
+
   useEffect(() => {
     loadLocales();
   }, []);
+
+  useEffect(() => {
+    if (!selectedLocal) {
+      setLockers([]);
+      setLockersError('');
+      return;
+    }
+    loadLockers({ silent: true });
+  }, [selectedLocal?.id, selectedLocal?.nombre]);
 
   const handleCreateLocal = async (event) => {
     event.preventDefault();
@@ -211,6 +248,7 @@ export default function LockersConfigView() {
         cantidad: generateCantidad,
         prefijo: generatePrefijo
       });
+      await loadLockers({ silent: true });
       setFeedback({
         type: 'success',
         message: 'RPC app.admin_crear_lockers ejecutado correctamente.'
