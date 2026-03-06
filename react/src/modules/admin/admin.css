@@ -14,6 +14,13 @@
 .admin-table table {
   width: 100%;
   border-collapse: collapse;
+  min-width: 640px;
+}
+
+.admin-table {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .admin-table th,
@@ -46,5 +53,9 @@
 @media (max-width: 900px) {
   .admin-toolbar {
     grid-template-columns: 1fr;
+  }
+
+  .admin .page-header .btn {
+    width: 100%;
   }
 }

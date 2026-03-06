@@ -202,13 +202,13 @@ export default function UsuarioAsignacionesView({ embedded = false }) {
                 <tbody>
                   {asignaciones.map((item) => (
                     <tr key={item.id}>
-                      <td>{item.colaborador_nombre}</td>
-                      <td>{item.locker_codigo}</td>
-                      <td>{formatDateTime(item.fecha_asignacion)}</td>
-                      <td>
+                      <td data-label="Colaborador">{item.colaborador_nombre}</td>
+                      <td data-label="Locker">{item.locker_codigo}</td>
+                      <td data-label="Fecha asignacion">{formatDateTime(item.fecha_asignacion)}</td>
+                      <td data-label="Estado">
                         <span className="estado-chip asignada">ACTIVA</span>
                       </td>
-                      <td>
+                      <td data-label="Accion">
                         <button className="usuario-button" type="button" onClick={() => setSelectedId(item.id)}>
                           Ver detalle
                         </button>
@@ -267,10 +267,10 @@ export default function UsuarioAsignacionesView({ embedded = false }) {
                         <tbody>
                           {movimientos.map((item) => (
                             <tr key={item.id}>
-                              <td>{normalizeText(item.tipo)}</td>
-                              <td>{normalizeText(item.llaves_declaradas, '--')}</td>
-                              <td>{normalizeText(item.llaves_esperadas, '--')}</td>
-                              <td>{formatDateTime(item.created_at)}</td>
+                              <td data-label="Tipo">{normalizeText(item.tipo)}</td>
+                              <td data-label="Declaradas">{normalizeText(item.llaves_declaradas, '--')}</td>
+                              <td data-label="Esperadas">{normalizeText(item.llaves_esperadas, '--')}</td>
+                              <td data-label="Fecha">{formatDateTime(item.created_at)}</td>
                             </tr>
                           ))}
                         </tbody>

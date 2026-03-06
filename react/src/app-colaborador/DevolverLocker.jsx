@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useColaboradorContext } from './context/ColaboradorContext.jsx';
 import CameraGuide from './components/CameraGuide.jsx';
 import { requireSupabaseClient } from '../shared/supabaseClient.js';
@@ -39,6 +40,7 @@ function getLlavesReales(locker) {
 }
 
 export default function DevolverLocker() {
+  const navigate = useNavigate();
   const { session } = useColaboradorContext();
   const [asignacionActiva, setAsignacionActiva] = useState(null);
   const [lockerMeta, setLockerMeta] = useState(null);
@@ -155,13 +157,26 @@ export default function DevolverLocker() {
   return (
     <main className="colaborador-page">
       <section className="colaborador-card colaborador-card-flow">
+        <div className="colaborador-topbar">
+          <button className="colaborador-link-button" type="button" onClick={() => navigate('/colaborador/home')}>
+            Volver
+          </button>
+          <span>Flujo: Devolucion</span>
+        </div>
         <span className="colaborador-kicker">APP COLABORADOR</span>
         <h1>Devolver locker</h1>
 
         {loading && <p>Validando asignacion activa...</p>}
         {!loading && !asignacionActiva && !error && !success && <p>No tienes locker asignado.</p>}
         {error && <p className="colaborador-error">{error}</p>}
-        {success && <p className="colaborador-success">DEVOLUCION REGISTRADA</p>}
+        {success && (
+          <>
+            <p className="colaborador-success">DEVOLUCION REGISTRADA</p>
+            <button className="colaborador-button" type="button" onClick={() => navigate('/colaborador/home')}>
+              VOLVER AL INICIO
+            </button>
+          </>
+        )}
 
         {!loading && asignacionActiva && !success && (
           <form className="colaborador-form" onSubmit={handleSubmit}>

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useColaboradorContext } from './context/ColaboradorContext.jsx';
 import CameraGuide from './components/CameraGuide.jsx';
 import { requireSupabaseClient } from '../shared/supabaseClient.js';
@@ -33,6 +34,7 @@ async function uploadImage(supabase, file, folder, collaboratorId) {
 }
 
 export default function SolicitarDuplicado() {
+  const navigate = useNavigate();
   const { session } = useColaboradorContext();
   const [asignacionActiva, setAsignacionActiva] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -123,6 +125,12 @@ export default function SolicitarDuplicado() {
   return (
     <main className="colaborador-page">
       <section className="colaborador-card colaborador-card-flow">
+        <div className="colaborador-topbar">
+          <button className="colaborador-link-button" type="button" onClick={() => navigate('/colaborador/home')}>
+            Volver
+          </button>
+          <span>Flujo: Duplicado</span>
+        </div>
         <span className="colaborador-kicker">APP COLABORADOR</span>
         <h1>Solicitar duplicado de llave</h1>
 
@@ -130,9 +138,14 @@ export default function SolicitarDuplicado() {
         {!loading && !asignacionActiva && !error && <p>No tienes locker asignado.</p>}
         {error && <p className="colaborador-error">{error}</p>}
         {success && (
-          <p className="colaborador-success">
-            SOLICITUD DE DUPLICADO CREADA. ACERQUESE A CENTRO DE CONTROL.
-          </p>
+          <>
+            <p className="colaborador-success">
+              SOLICITUD DE DUPLICADO CREADA. ACERQUESE A CENTRO DE CONTROL.
+            </p>
+            <button className="colaborador-button" type="button" onClick={() => navigate('/colaborador/home')}>
+              VOLVER AL INICIO
+            </button>
+          </>
         )}
 
         {!loading && asignacionActiva && !success && (

@@ -11,6 +11,7 @@
   --colab-accent-strong: #0a6962;
 
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   justify-content: center;
   align-items: flex-start;
@@ -32,6 +33,8 @@
   box-shadow:
     0 24px 48px rgba(13, 28, 54, 0.11),
     0 2px 0 rgba(255, 255, 255, 0.8) inset;
+  display: grid;
+  gap: 12px;
 }
 
 .colaborador-card-login {
@@ -56,6 +59,33 @@
   font-size: 0.76rem;
   font-weight: 700;
   letter-spacing: 0.08em;
+}
+
+.colaborador-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.colaborador-topbar span {
+  font-size: 0.78rem;
+  color: #5e7392;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.colaborador-link-button {
+  border: none;
+  background: #e8eef7;
+  color: #17365d;
+  border-radius: 10px;
+  padding: 9px 12px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
 }
 
 .colaborador-card h1 {
@@ -169,6 +199,23 @@
   text-align: center;
 }
 
+.colaborador-session-card {
+  border: 1px solid #dce4ef;
+  border-radius: 12px;
+  background: #f8fbff;
+  padding: 10px 12px;
+  display: grid;
+  gap: 4px;
+}
+
+.colaborador-session-card strong {
+  color: #0f2d4d;
+}
+
+.colaborador-session-card small {
+  color: #5e7392;
+}
+
 .colaborador-error {
   margin: 0;
   color: #c72b35;
@@ -280,7 +327,7 @@
 
 @media (max-width: 640px) {
   .colaborador-page {
-    padding-top: 14px;
+    padding: calc(12px + env(safe-area-inset-top, 0px)) 12px calc(20px + env(safe-area-inset-bottom, 0px));
   }
 
   .colaborador-card {
@@ -288,7 +335,24 @@
     padding: 16px;
   }
 
+  .colaborador-topbar {
+    flex-wrap: wrap;
+  }
+
+  .colaborador-topbar span {
+    width: 100%;
+  }
+
   .colaborador-button {
     min-height: 52px;
+    width: 100%;
+  }
+
+  .locker-card {
+    padding: 12px;
+  }
+
+  .colaborador-modal-actions {
+    grid-template-columns: 1fr;
   }
 }

@@ -9,7 +9,17 @@
   --danger: #b91c1c;
   --warning: #a16207;
   display: grid;
-  gap: 16px;
+  gap: 14px;
+  width: min(1240px, 100%);
+  margin: 0 auto;
+  padding-bottom: 10px;
+}
+
+.usuario-page--embedded {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding-bottom: 0;
 }
 
 .usuario-card {
@@ -18,6 +28,7 @@
   border-radius: 16px;
   box-shadow: 0 10px 20px rgba(15, 23, 42, 0.06);
   padding: 16px;
+  backdrop-filter: blur(2px);
 }
 
 .usuario-header {
@@ -31,6 +42,11 @@
 .usuario-header h1 {
   margin: 0;
   font-size: clamp(24px, 2.5vw, 30px);
+}
+
+.usuario-header h2 {
+  margin: 0;
+  font-size: clamp(18px, 2vw, 24px);
 }
 
 .usuario-header p {
@@ -88,10 +104,13 @@
   display: grid;
   gap: 14px;
   grid-template-columns: minmax(0, 1fr) minmax(320px, 360px);
+  align-items: start;
 }
 
 .usuario-table-wrap {
   overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .usuario-table {
@@ -236,6 +255,7 @@
   border: none;
   border-radius: 10px;
   padding: 8px 12px;
+  min-height: 40px;
   font-weight: 700;
   cursor: pointer;
   line-height: 1.2;
@@ -407,8 +427,94 @@
   }
 }
 
+@media (max-width: 860px) {
+  .usuario-card {
+    padding: 14px;
+    border-radius: 14px;
+  }
+
+  .usuario-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .usuario-table {
+    min-width: 0;
+  }
+
+  .usuario-table thead {
+    display: none;
+  }
+
+  .usuario-table tbody {
+    display: grid;
+    gap: 10px;
+  }
+
+  .usuario-table tr {
+    display: grid;
+    gap: 8px;
+    padding: 11px;
+    border-radius: 12px;
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    background: #ffffff;
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
+  }
+
+  .usuario-table td {
+    border: none;
+    padding: 0;
+    display: grid;
+    gap: 4px;
+  }
+
+  .usuario-table td::before {
+    content: attr(data-label);
+    font-size: 0.69rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--muted);
+  }
+
+  .usuario-table td[data-label='Accion'] .usuario-button {
+    width: 100%;
+  }
+
+  .usuario-table-inline {
+    min-width: 0;
+  }
+}
+
 @media (max-width: 960px) {
   .usuario-locker-columns {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .usuario-page {
+    gap: 12px;
+  }
+
+  .usuario-header h1 {
+    font-size: clamp(21px, 7vw, 27px);
+  }
+
+  .usuario-actions {
+    position: sticky;
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    background: #ffffff;
+    border: 1px solid rgba(148, 163, 184, 0.24);
+    border-radius: 12px;
+    padding: 10px;
+    z-index: 2;
+  }
+
+  .usuario-actions .btn-danger,
+  .usuario-actions .btn-approve,
+  .usuario-button,
+  .usuario-ghost-button {
+    min-height: 44px;
+    width: 100%;
   }
 }

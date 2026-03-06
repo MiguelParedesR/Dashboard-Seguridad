@@ -263,18 +263,18 @@ export default function UsuarioSolicitudesView() {
                 <tbody>
                   {filteredSolicitudes.map((item) => (
                     <tr key={item.id}>
-                      <td>
+                      <td data-label="Colaborador">
                         <strong>{item.colaborador_nombre}</strong>
                       </td>
-                      <td>{item.colaborador_dni}</td>
-                      <td>{item.locker_codigo}</td>
-                      <td>{item.area}</td>
-                      <td>{item.local}</td>
-                      <td>
+                      <td data-label="DNI">{item.colaborador_dni}</td>
+                      <td data-label="Locker">{item.locker_codigo}</td>
+                      <td data-label="Area">{item.area}</td>
+                      <td data-label="Local">{item.local}</td>
+                      <td data-label="Estado">
                         <span className={`estado-chip ${toEstadoClass(item.estado)}`}>{item.estado}</span>
                       </td>
-                      <td>{formatDateTime(item.created_at)}</td>
-                      <td>
+                      <td data-label="Fecha">{formatDateTime(item.created_at)}</td>
+                      <td data-label="Accion">
                         <button
                           className="usuario-button"
                           type="button"

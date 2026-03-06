@@ -122,17 +122,58 @@ export default function Sidebar() {
   );
 
   useEffect(() => {
+    if (typeof document === 'undefined') return undefined;
     document.body.classList.toggle('sidebar-collapsed', collapsed);
     localStorage.setItem('sidebar:collapsed', collapsed ? 'true' : 'false');
+    return () => {
+      document.body.classList.remove('sidebar-collapsed');
+    };
   }, [collapsed]);
 
   useEffect(() => {
+    if (typeof document === 'undefined') return undefined;
     document.body.classList.toggle('sidebar-open', mobileOpen);
+    document.body.classList.toggle('sidebar-scroll-lock', mobileOpen);
+    return () => {
+      document.body.classList.remove('sidebar-open');
+      document.body.classList.remove('sidebar-scroll-lock');
+    };
   }, [mobileOpen]);
 
   useEffect(() => {
     setMobileOpen(false);
   }, [location.pathname]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    const handleToggle = () => {
+      setMobileOpen((prev) => !prev);
+    };
+    const handleOpen = () => {
+      setMobileOpen(true);
+    };
+    const handleClose = () => {
+      setMobileOpen(false);
+    };
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') {
+        setMobileOpen(false);
+      }
+    };
+
+    window.addEventListener('sidebar:toggle', handleToggle);
+    window.addEventListener('sidebar:open', handleOpen);
+    window.addEventListener('sidebar:close', handleClose);
+    window.addEventListener('keydown', handleEscape);
+
+    return () => {
+      window.removeEventListener('sidebar:toggle', handleToggle);
+      window.removeEventListener('sidebar:open', handleOpen);
+      window.removeEventListener('sidebar:close', handleClose);
+      window.removeEventListener('keydown', handleEscape);
+    };
+  }, []);
 
   const groups = useMemo(
     () =>
@@ -215,41 +256,53 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className={`sidebar ${mobileOpen ? 'is-open' : ''}`}>
-      <div className="sidebar-brand">
-        <div className="brand-mark">TPP</div>
-        <div className="brand-text">
-          <span className="brand-title">Dashboard</span>
-          <span className="brand-sub">Seguridad Integral</span>
-        </div>
-        <button className="collapse-btn" type="button" onClick={() => setCollapsed((prev) => !prev)}>
-          <span className="collapse-dot"></span>
-        </button>
-      </div>
-
-      <nav className="sidebar-nav">
-        {groups.map((group) => (
-          <div key={group.id} className="nav-group">
-            <button className="group-toggle" type="button" onClick={() => toggleGroup(group.id)}>
-              <span className="group-label">{group.label}</span>
-              <span className={`group-chevron ${openGroups[group.id] ? 'open' : ''}`}></span>
-            </button>
-            <div className={`group-items ${openGroups[group.id] ? 'open' : ''}`}>
-              {group.items.map((item) => renderItem(item))}
-            </div>
+    <>
+      <aside className={`sidebar ${mobileOpen ? 'is-open' : ''}`} aria-label="Menu principal">
+        <div className="sidebar-brand">
+          <div className="brand-mark">TPP</div>
+          <div className="brand-text">
+            <span className="brand-title">Dashboard</span>
+            <span className="brand-sub">Seguridad Integral</span>
           </div>
-        ))}
-      </nav>
+          <button className="collapse-btn" type="button" onClick={() => setCollapsed((prev) => !prev)}>
+            <span className="collapse-dot"></span>
+          </button>
+          <button
+            className="sidebar-close-mobile"
+            type="button"
+            onClick={() => setMobileOpen(false)}
+            aria-label="Cerrar menu"
+          >
+            <span></span>
+            <span></span>
+          </button>
+        </div>
 
-      <button className="btn ghost sidebar-logout" type="button" onClick={handleLogout}>
-        Cerrar sesion
-      </button>
+        <nav className="sidebar-nav">
+          {groups.map((group) => (
+            <div key={group.id} className="nav-group">
+              <button className="group-toggle" type="button" onClick={() => toggleGroup(group.id)}>
+                <span className="group-label">{group.label}</span>
+                <span className={`group-chevron ${openGroups[group.id] ? 'open' : ''}`}></span>
+              </button>
+              <div className={`group-items ${openGroups[group.id] ? 'open' : ''}`}>
+                {group.items.map((item) => renderItem(item))}
+              </div>
+            </div>
+          ))}
+        </nav>
 
-      <button className="mobile-toggle" type="button" onClick={() => setMobileOpen((prev) => !prev)}>
-        <span className="mobile-line"></span>
-        <span className="mobile-line"></span>
-        <span className="mobile-line"></span>
-      </button>
-    </aside>
+        <button className="btn ghost sidebar-logout" type="button" onClick={handleLogout}>
+          Cerrar sesion
+        </button>
+      </aside>
+
+      <button
+        className={`sidebar-overlay ${mobileOpen ? 'is-visible' : ''}`}
+        type="button"
+        onClick={() => setMobileOpen(false)}
+        aria-label="Cerrar menu lateral"
+      ></button>
+    </>
   );
 }

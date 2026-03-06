@@ -405,15 +405,15 @@ export default function UsuarioHistorialView({ embedded = false }) {
               <tbody>
                 {filtered.map((item) => (
                   <tr key={item.id || `${item.locker_id}-${item.created_at}`}>
-                    <td>{formatDateTime(item.created_at)}</td>
-                    <td>{item.evento_label}</td>
-                    <td>{item.tipo_evento}</td>
-                    <td>{item.operador_nombre}</td>
-                    <td>{item.colaborador_nombre}</td>
-                    <td>{item.locker_codigo}</td>
-                    <td>{item.local}</td>
-                    <td>{item.area}</td>
-                    <td>{item.llaves_text}</td>
+                    <td data-label="Fecha">{formatDateTime(item.created_at)}</td>
+                    <td data-label="Evento">{item.evento_label}</td>
+                    <td data-label="Tipo evento">{item.tipo_evento}</td>
+                    <td data-label="Operador">{item.operador_nombre}</td>
+                    <td data-label="Colaborador">{item.colaborador_nombre}</td>
+                    <td data-label="Locker">{item.locker_codigo}</td>
+                    <td data-label="Local">{item.local}</td>
+                    <td data-label="Area">{item.area}</td>
+                    <td data-label="Llaves">{item.llaves_text}</td>
                   </tr>
                 ))}
               </tbody>

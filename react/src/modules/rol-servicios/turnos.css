@@ -7,6 +7,13 @@
 .turnos-table table {
   width: 100%;
   border-collapse: collapse;
+  min-width: 620px;
+}
+
+.turnos-table {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .turnos-table th,

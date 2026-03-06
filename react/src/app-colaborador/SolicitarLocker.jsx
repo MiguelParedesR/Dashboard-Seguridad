@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useColaboradorContext } from './context/ColaboradorContext.jsx';
 import CameraGuide from './components/CameraGuide.jsx';
 import { requireSupabaseClient } from '../shared/supabaseClient.js';
@@ -33,6 +34,7 @@ async function uploadImage(supabase, file, folder, collaboratorId) {
 }
 
 export default function SolicitarLocker() {
+  const navigate = useNavigate();
   const { session } = useColaboradorContext();
   const [lockers, setLockers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -139,11 +141,24 @@ export default function SolicitarLocker() {
   return (
     <main className="colaborador-page">
       <section className="colaborador-card colaborador-card-flow">
+        <div className="colaborador-topbar">
+          <button className="colaborador-link-button" type="button" onClick={() => navigate('/colaborador/home')}>
+            Volver
+          </button>
+          <span>Flujo: Solicitud</span>
+        </div>
         <span className="colaborador-kicker">APP COLABORADOR</span>
         <h1>Solicitar locker</h1>
         <p>Selecciona un locker libre en tu area y local actual.</p>
 
-        {done && <p className="colaborador-success">SOLICITUD CREADA. ACERQUESE A CENTRO DE CONTROL.</p>}
+        {done && (
+          <>
+            <p className="colaborador-success">SOLICITUD CREADA. ACERQUESE A CENTRO DE CONTROL.</p>
+            <button className="colaborador-button" type="button" onClick={() => navigate('/colaborador/home')}>
+              VOLVER AL INICIO
+            </button>
+          </>
+        )}
 
         {!done && (
           <>
