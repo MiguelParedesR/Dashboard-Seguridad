@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getSupabaseAdmin } from '@/lib/supabase/admin';
 import { isApiError, requireApiRole } from '@/lib/auth/api';
+import { processLockerRequest, readLockerRequests } from '@/lib/lockers/solicitudes';
 
 const actionSchema = z.object({
   solicitudId: z.string().uuid(),
@@ -9,35 +9,65 @@ const actionSchema = z.object({
   motivo: z.string().trim().max(500).optional()
 });
 
+function json(body: unknown, status = 200) {
+  const response = NextResponse.json(body, { status });
+  response.headers.set('Cache-Control', 'no-store');
+  return response;
+}
+
 export async function GET(request: NextRequest) {
   const auth = await requireApiRole(request, ['admin', 'cctv']);
   if (isApiError(auth)) return auth;
 
-  const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase
-    .from('solicitudes_locker')
-    .select('id,colaborador_id,locker_id,estado,foto_locker_url,observaciones,created_at,updated_at,colaboradores(nombre_completo,dni),lockers(codigo,local,area,estado,tiene_candado,tiene_duplicado_llave)')
-    .order('created_at', { ascending: false });
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ data: data || [] });
+  try {
+    const data = await readLockerRequests();
+    return json({ data, generatedAt: new Date().toISOString() });
+  } catch (error) {
+    console.error('[lockers/solicitudes:get]', error);
+    return json({ error: 'No se pudieron cargar las solicitudes' }, 500);
+  }
 }
 
 export async function POST(request: NextRequest) {
   const auth = await requireApiRole(request, ['admin', 'cctv']);
   if (isApiError(auth)) return auth;
 
-  const parsed = actionSchema.safeParse(await request.json());
-  if (!parsed.success) return NextResponse.json({ error: 'Solicitud inválida' }, { status: 400 });
+  try {
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return json({ error: 'Solicitud inválida' }, 400);
+    }
 
-  const supabase = getSupabaseAdmin();
-  const fn = parsed.data.action === 'aprobar' ? 'rpc_aprobar_solicitud' : 'rpc_rechazar_solicitud';
-  const args = parsed.data.action === 'aprobar'
-    ? { p_solicitud_id: parsed.data.solicitudId, p_operador_id: auth.sub }
-    : { p_solicitud_id: parsed.data.solicitudId, p_operador_id: auth.sub, p_motivo: parsed.data.motivo || null };
+    const parsed = actionSchema.safeParse(body);
+    if (!parsed.success) return json({ error: 'Solicitud inválida' }, 400);
 
-  const { data, error } = await supabase.rpc(fn, args);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  if (data && data.success === false) return NextResponse.json(data, { status: 409 });
-  return NextResponse.json(data || { success: true });
+    const result = await processLockerRequest({
+      solicitudId: parsed.data.solicitudId,
+      action: parsed.data.action,
+      operadorId: auth.sub,
+      motivo: parsed.data.motivo
+    });
+
+    if (result.kind === 'not_found') {
+      return json({ error: 'Solicitud no encontrada' }, 404);
+    }
+
+    if (result.kind === 'conflict') {
+      return json({
+        error: 'La solicitud ya fue procesada o ya no está disponible para esta acción.',
+        estado: result.estado
+      }, 409);
+    }
+
+    return json({
+      success: true,
+      action: parsed.data.action,
+      estado: result.estado
+    });
+  } catch (error) {
+    console.error('[lockers/solicitudes:post]', error);
+    return json({ error: 'No se pudo procesar la solicitud' }, 500);
+  }
 }
