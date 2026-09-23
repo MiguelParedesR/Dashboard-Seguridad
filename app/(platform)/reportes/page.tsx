@@ -1,44 +1,65 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
+
+type Summary = {
+  incidencias: number;
+  incidenciasCompletas: number;
+  inspecciones: number;
+  inspeccionesMampara: number;
+  lockers: number;
+  lockersLibres: number;
+  lockersOcupados: number;
+  lockersConIncidencia: number;
+  solicitudesPendientes: number;
+  generatedAt: string;
+};
 
 export default function ReportesPage() {
-  const [incidencias, setIncidencias] = useState<any[]>([]);
-  const [inspecciones, setInspecciones] = useState<any[]>([]);
-  const [lockers, setLockers] = useState<any[]>([]);
+  const [data, setData] = useState<Summary | null>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    Promise.all([
-      fetch('/api/incidencias',{cache:'no-store'}).then(r=>r.json()),
-      fetch('/api/mamparas/inspecciones',{cache:'no-store'}).then(r=>r.json()),
-      fetch('/api/lockers/overview',{cache:'no-store'}).then(r=>r.json())
-    ]).then(([a,b,c])=>{setIncidencias(a.data||[]);setInspecciones(b.data||[]);setLockers(c.data||[]);}).catch((e)=>setError(e.message||'No se pudieron cargar reportes'));
-  },[]);
-
-  const libre = useMemo(()=>lockers.filter((x)=>String(x.estado).toUpperCase()==='LIBRE').length,[lockers]);
-  const ocupados = useMemo(()=>lockers.filter((x)=>String(x.estado).toUpperCase()==='OCUPADO').length,[lockers]);
-  const mamparas = useMemo(()=>inspecciones.filter((x)=>String(x.incorreccion).toLowerCase()==='mampara').length,[inspecciones]);
-
-  function exportCsv() {
-    const rows = [
-      ['indicador','valor'],
-      ['incidencias',incidencias.length],
-      ['inspecciones',inspecciones.length],
-      ['inspecciones_mampara',mamparas],
-      ['lockers_total',lockers.length],
-      ['lockers_libres',libre],
-      ['lockers_ocupados',ocupados]
-    ];
-    const csv = rows.map((r)=>r.join(',')).join('\n');
-    const blob = new Blob([csv],{type:'text/csv;charset=utf-8'});
-    const url = URL.createObjectURL(blob); const a=document.createElement('a');a.href=url;a.download=`tpp-reporte-${new Date().toISOString().slice(0,10)}.csv`;a.click();URL.revokeObjectURL(url);
+  async function load() {
+    setLoading(true);
+    setError('');
+    try {
+      const response = await fetch('/api/reportes', { cache: 'no-store' });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'No se pudo cargar el reporte');
+      setData(payload.data || null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo cargar el reporte');
+    } finally {
+      setLoading(false);
+    }
   }
 
+  useEffect(() => { void load(); }, []);
+
   return <main>
-    <div className="page-head"><div><div className="eyebrow">Analítica</div><h1>Reportes</h1><p>Lectura consolidada sin duplicar fuentes. Cada indicador conserva su tabla canónica.</p></div><button className="btn btn-primary" onClick={exportCsv}>Exportar CSV</button></div>
-    {error?<div className="feedback error">{error}</div>:null}
-    <div className="metric-strip"><div className="metric"><div className="value">{incidencias.length}</div><div className="label">Incidencias</div></div><div className="metric"><div className="value">{inspecciones.length}</div><div className="label">Inspecciones</div></div><div className="metric"><div className="value">{lockers.length}</div><div className="label">Lockers</div></div><div className="metric"><div className="value">{mamparas}</div><div className="label">Mamparas</div></div></div>
-    <section className="section"><div className="section-head"><div><h2>Estado de lockers</h2><p>Distribución operativa actual.</p></div></div><div className="grid-3"><div className="panel"><h3>Libres</h3><p style={{fontSize:34,color:'var(--text)',margin:'10px 0 0',fontWeight:700}}>{libre}</p></div><div className="panel"><h3>Ocupados</h3><p style={{fontSize:34,color:'var(--text)',margin:'10px 0 0',fontWeight:700}}>{ocupados}</p></div><div className="panel"><h3>Otros estados</h3><p style={{fontSize:34,color:'var(--text)',margin:'10px 0 0',fontWeight:700}}>{Math.max(lockers.length-libre-ocupados,0)}</p></div></div></section>
+    <div className="page-head">
+      <div><div className="eyebrow">Analítica</div><h1>Reportes</h1><p>Consolidado generado en servidor desde las fuentes canónicas de incidencias, inspecciones y lockers.</p></div>
+      <div className="toolbar"><button className="btn btn-secondary" onClick={load} disabled={loading}>Actualizar</button><a className="btn btn-primary" href="/api/reportes?format=csv">Exportar CSV</a></div>
+    </div>
+    {error ? <div className="feedback error">{error}</div> : null}
+    {loading ? <div className="empty">Generando reporte…</div> : null}
+    {!loading && data ? <>
+      <div className="metric-strip">
+        <div className="metric"><div className="value">{data.incidencias}</div><div className="label">Incidencias</div></div>
+        <div className="metric"><div className="value">{data.inspecciones}</div><div className="label">Inspecciones</div></div>
+        <div className="metric"><div className="value">{data.lockers}</div><div className="label">Lockers activos</div></div>
+        <div className="metric"><div className="value">{data.solicitudesPendientes}</div><div className="label">Solicitudes pendientes</div></div>
+      </div>
+      <section className="section"><div className="section-head"><div><h2>Resumen operativo</h2><p>Actualizado {new Date(data.generatedAt).toLocaleString('es-PE')}.</p></div></div>
+        <div className="table-wrap"><table><thead><tr><th>Indicador</th><th>Valor</th></tr></thead><tbody>
+          <tr><td>Incidencias completas</td><td>{data.incidenciasCompletas}</td></tr>
+          <tr><td>Inspecciones de mampara</td><td>{data.inspeccionesMampara}</td></tr>
+          <tr><td>Lockers libres</td><td>{data.lockersLibres}</td></tr>
+          <tr><td>Lockers ocupados</td><td>{data.lockersOcupados}</td></tr>
+          <tr><td>Incidencias de llaves pendientes</td><td>{data.lockersConIncidencia}</td></tr>
+        </tbody></table></div>
+      </section>
+    </> : null}
   </main>;
 }
