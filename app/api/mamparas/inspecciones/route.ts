@@ -1,49 +1,56 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getSupabaseAdmin } from '@/lib/supabase/admin';
 import { isApiError, requireApiRole } from '@/lib/auth/api';
+import { createInspection, readInspections } from '@/lib/mamparas/inspections';
 
-const inspeccionSchema = z.object({
-  fecha: z.string().min(1),
-  hora: z.string().min(1),
-  responsable: z.string().default(''),
-  empresa: z.string().default(''),
-  placa: z.string().trim().min(1).max(12).transform((v) => v.toUpperCase()),
-  chofer: z.string().default(''),
-  lugar: z.string().default(''),
-  incorreccion: z.string().default(''),
-  observaciones: z.string().default(''),
-  separacion_central: z.number().nullable().optional(),
-  medida_altura: z.string().nullable().optional(),
-  medida_central: z.string().nullable().optional(),
-  altura_mampara: z.number().nullable().optional(),
-  foto_unidad: z.string().url().nullable().optional(),
-  foto_observacion: z.string().url().nullable().optional(),
-  detalle: z.string().default('')
+const inspectionSchema = z.object({
+  fecha: z.string().trim().min(1).max(10),
+  hora: z.string().trim().min(1).max(8),
+  responsable: z.string().trim().min(1).max(160),
+  empresa: z.string().trim().min(1).max(160),
+  placa: z.string().trim().min(6).max(12),
+  chofer: z.string().trim().min(1).max(200),
+  lugar: z.string().trim().min(1).max(120),
+  incorreccion: z.string().trim().min(1).max(120),
+  observaciones: z.string().trim().min(1).max(500),
+  separacion_central: z.number().min(0).nullable(),
+  medida_altura: z.string().max(80).nullable(),
+  medida_central: z.string().max(80).nullable(),
+  altura_mampara: z.number().min(0).nullable(),
+  foto_unidad: z.string().url().nullable(),
+  foto_observacion: z.string().url().nullable(),
+  detalle: z.string().min(2).max(20000)
 });
 
-export async function GET(request: NextRequest) {
-  const auth = await requireApiRole(request, ['admin', 'cctv']);
-  if (isApiError(auth)) return auth;
+function json(body: unknown, status = 200) {
+  const response = NextResponse.json(body, { status });
+  response.headers.set('Cache-Control', 'no-store');
+  return response;
+}
 
-  const url = new URL(request.url);
-  const placa = String(url.searchParams.get('placa') || '').trim().toUpperCase();
-  const supabase = getSupabaseAdmin();
-  let query = supabase.from('inspecciones').select('*').order('fecha', { ascending: false }).order('hora', { ascending: false });
-  if (placa) query = query.ilike('placa', `%${placa}%`);
-  const { data, error } = await query.limit(500);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ data: data || [] });
+export async function GET(request: NextRequest) {
+  const auth = await requireApiRole(request, ['admin']);
+  if (isApiError(auth)) return auth;
+  try {
+    const plate = new URL(request.url).searchParams.get('placa') || '';
+    const data = await readInspections(plate);
+    return json({ data, generatedAt: new Date().toISOString() });
+  } catch (error) {
+    console.error('[mamparas/inspecciones:get]', error);
+    return json({ error: 'No se pudieron cargar las inspecciones' }, 500);
+  }
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await requireApiRole(request, ['admin', 'cctv']);
+  const auth = await requireApiRole(request, ['admin']);
   if (isApiError(auth)) return auth;
-  const parsed = inspeccionSchema.safeParse(await request.json());
-  if (!parsed.success) return NextResponse.json({ error: 'Datos de inspección inválidos', issues: parsed.error.issues }, { status: 400 });
-
-  const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase.from('inspecciones').insert([parsed.data]).select('*').single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ data }, { status: 201 });
+  try {
+    const parsed = inspectionSchema.safeParse(await request.json());
+    if (!parsed.success) return json({ error: 'Datos de inspección inválidos' }, 400);
+    const data = await createInspection(parsed.data);
+    return json({ data }, 201);
+  } catch (error) {
+    console.error('[mamparas/inspecciones:post]', error);
+    return json({ error: 'No se pudo registrar la inspección' }, 500);
+  }
 }

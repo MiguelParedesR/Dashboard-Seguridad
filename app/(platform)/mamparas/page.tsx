@@ -1,87 +1,113 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import InspectionForm, { type InspectionRow } from '@/components/mamparas/InspectionForm';
 
-type Row = Record<string, any>;
+function parseDetail(value: string) {
+  try { return value ? JSON.parse(value) as Record<string, any> : {}; } catch { return {}; }
+}
 
-async function upload(file: File | null, folder: string) {
-  if (!file) return null;
-  const body = new FormData(); body.set('file', file); body.set('bucket','mamparas'); body.set('folder', folder);
-  const response = await fetch('/api/storage/upload', { method:'POST', body });
-  const payload = await response.json();
-  if (!response.ok) throw new Error(payload.error || 'No se pudo subir evidencia');
-  return payload.url as string;
+function normalizePlate(value: string) {
+  return value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
 }
 
 export default function MamparasPage() {
-  const [rows, setRows] = useState<Row[]>([]);
+  const [rows, setRows] = useState<InspectionRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [query, setQuery] = useState('');
+  const [typeFilter, setTypeFilter] = useState('TODOS');
   const [showForm, setShowForm] = useState(false);
-  const [tipo, setTipo] = useState('Mampara');
+  const [selected, setSelected] = useState<InspectionRow | null>(null);
 
-  async function load(placa = '') {
-    setLoading(true); setError('');
+  async function load() {
+    setLoading(true);
+    setError('');
     try {
-      const response = await fetch(`/api/mamparas/inspecciones${placa ? `?placa=${encodeURIComponent(placa)}` : ''}`, { cache:'no-store' });
-      const payload = await response.json(); if (!response.ok) throw new Error(payload.error || 'No se pudieron cargar inspecciones');
-      setRows(payload.data || []);
-    } catch (err) { setError(err instanceof Error ? err.message : 'Error'); }
-    finally { setLoading(false); }
+      const response = await fetch('/api/mamparas/inspecciones', { cache: 'no-store' });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'No se pudieron cargar las inspecciones');
+      setRows(Array.isArray(payload.data) ? payload.data : []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudieron cargar las inspecciones');
+    } finally {
+      setLoading(false);
+    }
   }
+
   useEffect(() => { void load(); }, []);
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); if (saving) return;
-    setSaving(true); setError(''); setSuccess('');
-    const form = new FormData(event.currentTarget);
-    try {
-      const placa = String(form.get('placa') || '').replace(/[^a-zA-Z0-9]/g,'').toUpperCase();
-      const esMampara = tipo === 'Mampara';
-      const fotoPanoramica = await upload(form.get('fotoPanoramica') as File, `inspecciones/${placa}/panoramica`);
-      const fotoAltura = esMampara ? await upload(form.get('fotoAltura') as File, `inspecciones/${placa}/altura`) : null;
-      const fotoLateral = esMampara ? await upload(form.get('fotoLateral') as File, `inspecciones/${placa}/lateral`) : null;
-      const fotoObservacion = !esMampara ? await upload(form.get('fotoObservacion') as File, `inspecciones/${placa}/observacion`) : null;
-      const separacion = esMampara ? Number(form.get('separacion_central') || 0) : null;
-      const altura = esMampara ? Number(form.get('altura_mampara') || 0) : null;
-      const detalle = esMampara ? {
-        tipo:'Mampara', datos:{ separacion_lateral_central: separacion, altura_mampara: altura },
-        imagenes:{ foto_panoramica_unidad: fotoPanoramica, foto_altura_mampara: fotoAltura, foto_lateral_central: fotoLateral }, timestamp:new Date().toISOString()
-      } : {
-        tipo, datos:{ observacion_texto:String(form.get('observacion_texto') || '') },
-        imagenes:{ foto_observacion: fotoObservacion || fotoPanoramica }, timestamp:new Date().toISOString()
-      };
-      const payload = {
-        fecha:String(form.get('fecha')), hora:String(form.get('hora')), responsable:String(form.get('responsable') || ''), empresa:String(form.get('empresa') || ''), placa,
-        chofer:String(form.get('chofer') || ''), lugar:String(form.get('lugar') || ''), incorreccion:tipo, observaciones:String(form.get('observaciones') || ''),
-        separacion_central: separacion, medida_altura: altura !== null ? `${altura} cm` : null, medida_central: separacion !== null ? `${separacion} cm` : null,
-        altura_mampara: altura, foto_unidad: esMampara ? fotoPanoramica : null, foto_observacion: esMampara ? fotoAltura : (fotoObservacion || fotoPanoramica), detalle:JSON.stringify(detalle)
-      };
-      const response = await fetch('/api/mamparas/inspecciones', { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify(payload) });
-      const result = await response.json(); if (!response.ok) throw new Error(result.error || 'No se pudo registrar inspección');
-      setSuccess('Inspección registrada correctamente.'); setShowForm(false); await load();
-    } catch (err) { setError(err instanceof Error ? err.message : 'Error'); }
-    finally { setSaving(false); }
+  const filtered = useMemo(() => {
+    const plate = normalizePlate(query);
+    return rows.filter((row) => {
+      if (typeFilter !== 'TODOS' && row.incorreccion !== typeFilter) return false;
+      return !plate || normalizePlate(row.placa).includes(plate);
+    });
+  }, [rows, query, typeFilter]);
+
+  const mamparas = rows.filter((row) => row.incorreccion === 'Mampara').length;
+  const detail = selected ? parseDetail(selected.detalle) : null;
+  const images = detail?.imagenes && typeof detail.imagenes === 'object' ? Object.entries(detail.imagenes).filter(([, value]) => Boolean(value)) : [];
+
+  function saved(row: InspectionRow) {
+    setRows((current) => [row, ...current]);
+    setShowForm(false);
+    setSuccess('Inspección registrada correctamente.');
+    setSelected(row);
   }
 
-  const mamparas = useMemo(() => rows.filter((r) => String(r.incorreccion).toLowerCase() === 'mampara').length, [rows]);
-  const now = new Date(); const fecha = now.toISOString().slice(0,10); const hora = now.toTimeString().slice(0,5);
+  return (
+    <main>
+      <div className="page-head">
+        <div>
+          <div className="eyebrow">Inspección vehicular</div>
+          <h1>Mamparas</h1>
+          <p>Flujo migrado desde Formulario-Mamparas con validación de placa existente, detalle obligatorio, medidas y evidencias trazables.</p>
+        </div>
+        <button className="btn btn-primary" type="button" onClick={() => { setShowForm(true); setSuccess(''); }}>Nueva inspección</button>
+      </div>
 
-  return <main>
-    <div className="page-head"><div><div className="eyebrow">Inspección vehicular</div><h1>Mamparas</h1><p>Flujo migrado desde Formulario-Mamparas: validación, medidas, evidencias y trazabilidad en una sola aplicación.</p></div><button className="btn btn-primary" onClick={() => setShowForm((v)=>!v)}>{showForm?'Cerrar':'Nueva inspección'}</button></div>
-    <div className="metric-strip"><div className="metric"><div className="value">{rows.length}</div><div className="label">Registros</div></div><div className="metric"><div className="value">{mamparas}</div><div className="label">Mamparas</div></div><div className="metric"><div className="value">{rows.length-mamparas}</div><div className="label">Otras observaciones</div></div><div className="metric"><div className="value">1.80 m</div><div className="label">Altura estándar</div></div></div>
-    {error?<div className="feedback error">{error}</div>:null}{success?<div className="feedback success">{success}</div>:null}
-    {showForm?<section className="section"><div className="section-head"><div><h2>Registrar inspección</h2><p>Fotos y detalle se guardan en Supabase Storage y PostgreSQL.</p></div></div><form className="form-grid" onSubmit={submit}>
-      <div className="field"><label>Fecha</label><input className="input" type="date" name="fecha" defaultValue={fecha} required/></div><div className="field"><label>Hora</label><input className="input" type="time" name="hora" defaultValue={hora} required/></div>
-      <div className="field"><label>Responsable</label><input className="input" name="responsable" required/></div><div className="field"><label>Empresa</label><input className="input" name="empresa" required/></div>
-      <div className="field"><label>Placa</label><input className="input" name="placa" maxLength={8} required/></div><div className="field"><label>Chofer</label><input className="input" name="chofer"/></div>
-      <div className="field"><label>Lugar</label><input className="input" name="lugar"/></div><div className="field"><label>Incorrección</label><select className="select" value={tipo} onChange={(e)=>setTipo(e.target.value)}><option>Mampara</option><option>Otros</option></select></div>
-      {tipo==='Mampara'?<><div className="field"><label>Separación lateral (cm)</label><input className="input" name="separacion_central" type="number" min="0" step="0.01" required/></div><div className="field"><label>Altura mampara (cm)</label><input className="input" name="altura_mampara" type="number" min="0" step="0.01" required/></div><div className="field"><label>Foto panorámica</label><input className="input" type="file" name="fotoPanoramica" accept="image/*" required/></div><div className="field"><label>Foto altura</label><input className="input" type="file" name="fotoAltura" accept="image/*" required/></div><div className="field"><label>Foto lateral</label><input className="input" type="file" name="fotoLateral" accept="image/*" required/></div></>:<><div className="field full"><label>Descripción</label><textarea className="textarea" name="observacion_texto" required/></div><div className="field"><label>Foto observación</label><input className="input" type="file" name="fotoObservacion" accept="image/*" required/></div></>}
-      <div className="field full"><label>Observaciones</label><textarea className="textarea" name="observaciones"/></div><div className="full"><button className="btn btn-primary" disabled={saving}>{saving?'Registrando…':'Registrar inspección'}</button></div>
-    </form></section>:null}
-    <section className="section"><div className="section-head"><div><h2>Histórico</h2><p>Consulta por placa y revisión de últimos registros.</p></div><div className="toolbar"><input className="input" placeholder="Buscar placa" value={query} onChange={(e)=>setQuery(e.target.value.toUpperCase())}/><button className="btn btn-secondary" onClick={()=>load(query)}>Buscar</button><button className="btn btn-secondary" onClick={()=>{setQuery('');load();}}>Limpiar</button></div></div>{loading?<div className="empty">Cargando…</div>:<div className="table-wrap"><table><thead><tr><th>Fecha</th><th>Hora</th><th>Placa</th><th>Empresa</th><th>Responsable</th><th>Tipo</th><th>Medidas</th></tr></thead><tbody>{rows.map((row)=><tr key={row.id}><td>{row.fecha||'—'}</td><td>{row.hora||'—'}</td><td><strong>{row.placa||'—'}</strong></td><td>{row.empresa||'—'}</td><td>{row.responsable||'—'}</td><td>{row.incorreccion||'—'}</td><td>{row.altura_mampara?`${row.altura_mampara} cm`:''}{row.separacion_central?` · ${row.separacion_central} cm`:''}</td></tr>)}</tbody></table></div>}</section>
-  </main>;
+      <div className="metric-strip" aria-label="Resumen de inspecciones">
+        <div className="metric"><div className="value">{rows.length}</div><div className="label">Registros</div></div>
+        <div className="metric"><div className="value">{mamparas}</div><div className="label">Mamparas</div></div>
+        <div className="metric"><div className="value">{rows.length - mamparas}</div><div className="label">Otras incorrecciones</div></div>
+        <div className="metric"><div className="value">1.80 m / 0.15 m</div><div className="label">Referencia operativa</div></div>
+      </div>
+
+      {error ? <div className="feedback error" role="alert">{error}</div> : null}
+      {success ? <div className="feedback success" role="status">{success}</div> : null}
+      {showForm ? <InspectionForm onCancel={() => setShowForm(false)} onSaved={saved} /> : null}
+
+      <section className="section">
+        <div className="section-head">
+          <div><h2>Histórico</h2><p>{loading ? 'Cargando inspecciones…' : `${filtered.length} registros visibles`}</p></div>
+          <div className="toolbar">
+            <input className="input" placeholder="Buscar placa" value={query} onChange={(e) => setQuery(normalizePlate(e.target.value))} maxLength={6} />
+            <select className="select" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}><option value="TODOS">Todos los tipos</option><option>Mampara</option><option>Cola de Pato</option><option>Pernos</option><option>Otros</option></select>
+            <button className="btn btn-secondary" type="button" onClick={load} disabled={loading}>{loading ? 'Actualizando…' : 'Actualizar'}</button>
+          </div>
+        </div>
+
+        {loading ? <div className="empty">Cargando…</div> : null}
+        {!loading && filtered.length === 0 ? <div className="empty">No hay inspecciones para los filtros seleccionados.</div> : null}
+        {!loading && filtered.length > 0 ? <div className="table-wrap"><table><thead><tr><th>Fecha</th><th>Hora</th><th>Placa</th><th>Empresa</th><th>Responsable</th><th>Tipo</th><th>Medidas</th><th>Acción</th></tr></thead><tbody>{filtered.map((row) => <tr key={row.id}>
+          <td>{row.fecha || '—'}</td><td>{row.hora || '—'}</td><td><strong>{row.placa || '—'}</strong></td><td>{row.empresa || '—'}</td><td>{row.responsable || '—'}</td><td>{row.incorreccion || '—'}</td><td>{row.incorreccion === 'Mampara' ? `${row.altura_mampara ?? '—'} cm · ${row.separacion_central ?? '—'} cm` : '—'}</td><td><button className="btn btn-secondary" type="button" onClick={() => setSelected(row)}>Ver detalle</button></td>
+        </tr>)}</tbody></table></div> : null}
+      </section>
+
+      {selected ? <section className="section" aria-labelledby="inspection-detail-title">
+        <div className="section-head"><div><h2 id="inspection-detail-title">Detalle · {selected.placa}</h2><p>{selected.fecha} {selected.hora} · {selected.empresa}</p></div><button className="btn btn-secondary" type="button" onClick={() => setSelected(null)}>Cerrar</button></div>
+        <div className="form-grid">
+          <div className="field"><label>Chofer</label><div className="input" aria-readonly="true">{selected.chofer || '—'}</div></div>
+          <div className="field"><label>Lugar</label><div className="input" aria-readonly="true">{selected.lugar || '—'}</div></div>
+          <div className="field"><label>Observaciones</label><div className="input" aria-readonly="true">{selected.observaciones || '—'}</div></div>
+          <div className="field"><label>Tipo</label><div className="input" aria-readonly="true">{selected.incorreccion || '—'}</div></div>
+          {detail?.datos?.observacion_texto ? <div className="field full"><label>Descripción</label><div className="input" aria-readonly="true">{String(detail.datos.observacion_texto)}</div></div> : null}
+          <div className="field full"><label>Evidencias</label><div className="toolbar">{images.length ? images.map(([key, value]) => <a key={key} href={String(value)} target="_blank" rel="noreferrer">{key.replace(/_/g, ' ')}</a>) : 'Sin evidencias'}</div></div>
+          {detail?.json_storage?.publicUrl ? <div className="field full"><label>Detalle JSON</label><a href={String(detail.json_storage.publicUrl)} target="_blank" rel="noreferrer">Abrir evidencia estructurada</a></div> : null}
+        </div>
+      </section> : null}
+    </main>
+  );
 }
