@@ -1,14 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
-import { issueSession, SESSION_COOKIE, sessionCookieOptions } from '@/lib/auth/session';
+import {
+  defaultStaffRoute,
+  issueSession,
+  normalizeStaffRole,
+  SESSION_COOKIE,
+  sessionCookieOptions
+} from '@/lib/auth/session';
 
 const schema = z.object({ dni: z.string().trim().regex(/^\d{8}$/) });
+
+function json(body: unknown, status = 200) {
+  const response = NextResponse.json(body, { status });
+  response.headers.set('Cache-Control', 'no-store');
+  return response;
+}
 
 export async function POST(request: NextRequest) {
   try {
     const parsed = schema.safeParse(await request.json());
-    if (!parsed.success) return NextResponse.json({ error: 'DNI inválido' }, { status: 400 });
+    if (!parsed.success) return json({ error: 'DNI inválido' }, 400);
 
     const supabase = getSupabaseAdmin();
     const { data, error } = await supabase
@@ -19,30 +31,28 @@ export async function POST(request: NextRequest) {
 
     if (error) throw error;
     const rows = Array.isArray(data) ? data : [];
-    if (rows.length !== 1) return NextResponse.json({ error: 'Credencial no válida' }, { status: 401 });
+    if (rows.length !== 1) return json({ error: 'Credencial no válida' }, 401);
 
     const user = rows[0] as { id: string; nombre?: string; dni?: string; rol?: string; activo?: boolean };
-    const role = String(user.rol || '').trim().toLowerCase();
-    if (!user.activo || (role !== 'admin' && role !== 'cctv')) {
-      return NextResponse.json({ error: 'Acceso no autorizado' }, { status: 403 });
-    }
+    const role = normalizeStaffRole(user.rol);
+    if (!user.activo || !role) return json({ error: 'Credencial no válida' }, 401);
 
     const token = await issueSession({
       sub: user.id,
-      role: role as 'admin' | 'cctv',
+      role,
       nombre: user.nombre,
       dni: user.dni
     });
 
-    const response = NextResponse.json({
+    const response = json({
       ok: true,
       user: { id: user.id, nombre: user.nombre, role },
-      redirectTo: role === 'admin' ? '/dashboard' : '/lockers/solicitudes'
+      redirectTo: defaultStaffRoute(role)
     });
     response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions());
     return response;
   } catch (error) {
     console.error('[auth/login]', error);
-    return NextResponse.json({ error: 'No se pudo validar el acceso' }, { status: 500 });
+    return json({ error: 'No se pudo validar el acceso' }, 500);
   }
 }
