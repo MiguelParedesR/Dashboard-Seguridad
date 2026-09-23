@@ -1,0 +1,53 @@
+name: Next Platform CI
+
+on:
+  push:
+    branches:
+      - modernization/next-platform
+  pull_request:
+    branches:
+      - modernization/next-platform
+
+permissions:
+  contents: write
+
+concurrency:
+  group: next-platform-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  foundation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Synchronize npm lockfile
+        run: npm install --package-lock-only --ignore-scripts
+
+      - name: Install exact dependencies
+        run: npm ci
+
+      - name: Typecheck and build
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+        run: npm run ci:smoke
+
+      - name: Persist synchronized lockfile
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          if git diff --quiet -- package-lock.json; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          git commit -m "chore(phase-1): synchronize Next.js lockfile"
+          git push
