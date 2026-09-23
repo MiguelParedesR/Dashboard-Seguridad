@@ -8,6 +8,7 @@ export type LockerRequestView = {
   id: string;
   colaboradorId: string;
   lockerId: string;
+  asignacionId: string | null;
   estado: string;
   fotoLockerUrl: string | null;
   observaciones: string | null;
@@ -44,6 +45,12 @@ type LockerRow = {
   local?: string | null;
   area?: string | null;
   estado?: string | null;
+};
+
+type AssignmentRow = {
+  id: string;
+  solicitud_id?: string | null;
+  fecha_asignacion?: string | null;
 };
 
 export type LockerRequestProcessResult =
@@ -89,18 +96,27 @@ export async function readLockerRequests(): Promise<LockerRequestView[]> {
 
   const collaboratorIds = uniqueIds(rows.map((row) => row.colaborador_id));
   const lockerIds = uniqueIds(rows.map((row) => row.locker_id));
+  const requestIds = uniqueIds(rows.map((row) => row.id));
 
-  const [collaboratorsResult, lockersResult] = await Promise.all([
+  const [collaboratorsResult, lockersResult, assignmentsResult] = await Promise.all([
     collaboratorIds.length
       ? supabase.from('colaboradores').select('id,nombre_completo,dni').in('id', collaboratorIds)
       : Promise.resolve({ data: [] as CollaboratorRow[], error: null }),
     lockerIds.length
       ? supabase.from('lockers').select('id,codigo,local,area,estado').in('id', lockerIds)
-      : Promise.resolve({ data: [] as LockerRow[], error: null })
+      : Promise.resolve({ data: [] as LockerRow[], error: null }),
+    requestIds.length
+      ? supabase
+          .from('asignaciones_locker')
+          .select('id,solicitud_id,fecha_asignacion')
+          .in('solicitud_id', requestIds)
+          .order('fecha_asignacion', { ascending: false })
+      : Promise.resolve({ data: [] as AssignmentRow[], error: null })
   ]);
 
   if (collaboratorsResult.error) throw collaboratorsResult.error;
   if (lockersResult.error) throw lockersResult.error;
+  if (assignmentsResult.error) throw assignmentsResult.error;
 
   const collaboratorsById = new Map(
     ((collaboratorsResult.data || []) as CollaboratorRow[]).map((row) => [text(row.id), row])
@@ -108,17 +124,25 @@ export async function readLockerRequests(): Promise<LockerRequestView[]> {
   const lockersById = new Map(
     ((lockersResult.data || []) as LockerRow[]).map((row) => [text(row.id), row])
   );
+  const assignmentByRequest = new Map<string, AssignmentRow>();
+  for (const assignment of (assignmentsResult.data || []) as AssignmentRow[]) {
+    const requestId = text(assignment.solicitud_id);
+    if (requestId && !assignmentByRequest.has(requestId)) assignmentByRequest.set(requestId, assignment);
+  }
 
   return rows.map((row) => {
+    const requestId = text(row.id);
     const colaboradorId = text(row.colaborador_id);
     const lockerId = text(row.locker_id);
     const colaborador = collaboratorsById.get(colaboradorId);
     const locker = lockersById.get(lockerId);
+    const assignment = assignmentByRequest.get(requestId);
 
     return {
-      id: text(row.id),
+      id: requestId,
       colaboradorId,
       lockerId,
+      asignacionId: nullableText(assignment?.id),
       estado: state(row.estado),
       fotoLockerUrl: nullableText(row.foto_locker_url),
       observaciones: nullableText(row.observaciones),

@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 
 const PENDING_STATES = ['CREADA', 'EN_REVISION'];
@@ -8,6 +9,7 @@ type Solicitud = {
   id: string;
   colaboradorId: string;
   lockerId: string;
+  asignacionId: string | null;
   estado: string;
   fotoLockerUrl: string | null;
   observaciones: string | null;
@@ -40,7 +42,7 @@ function isPending(estado: unknown) {
 
 function statusClass(estado: string) {
   const normalized = normalize(estado).toUpperCase();
-  if (normalized === 'APROBADA') return 'success';
+  if (normalized === 'APROBADA' || normalized === 'ASIGNADA') return 'success';
   if (normalized === 'RECHAZADA') return 'danger';
   return 'warning';
 }
@@ -128,7 +130,7 @@ export default function SolicitudesPage() {
 
       setMessage(
         action === 'aprobar'
-          ? 'Solicitud aprobada. La asignación fue creada por la RPC.'
+          ? 'Solicitud aprobada. Ya puedes registrar la entrega de llaves.'
           : 'Solicitud rechazada correctamente.'
       );
       await load();
@@ -186,7 +188,7 @@ export default function SolicitudesPage() {
         <div>
           <div className="eyebrow">Lockers</div>
           <h1>Solicitudes</h1>
-          <p>Aprobación y rechazo ejecutados únicamente por RPC server-side. La concurrencia queda resuelta en PostgreSQL.</p>
+          <p>Aprobación y rechazo por RPC server-side; la entrega se registra después de la aprobación con evidencia.</p>
           {generatedAt ? <p style={{ marginTop: 8, fontSize: 12 }}>Última lectura: {formatDateTime(generatedAt)}</p> : null}
         </div>
         <button className="btn btn-secondary" onClick={load} disabled={loading || Boolean(working)} type="button">
@@ -196,41 +198,21 @@ export default function SolicitudesPage() {
 
       <div className="metric-strip" aria-label="Resumen de solicitudes">
         <div className="metric"><div className="value">{counts.pending}</div><div className="label">Pendientes</div></div>
-        <div className="metric"><div className="value">{counts.approved}</div><div className="label">Aprobadas</div></div>
+        <div className="metric"><div className="value">{counts.approved}</div><div className="label">Por entregar</div></div>
         <div className="metric"><div className="value">{counts.rejected}</div><div className="label">Rechazadas</div></div>
         <div className="metric"><div className="value">{counts.total}</div><div className="label">Total</div></div>
       </div>
 
       <section className="section">
         <div className="section-head">
-          <div>
-            <h2>Bandeja operativa</h2>
-            <p>{loading ? 'Cargando solicitudes…' : `${filtered.length} solicitudes visibles`}</p>
-          </div>
+          <div><h2>Bandeja operativa</h2><p>{loading ? 'Cargando solicitudes…' : `${filtered.length} solicitudes visibles`}</p></div>
           <div className="toolbar">
-            <input
-              className="input"
-              aria-label="Buscar solicitudes"
-              placeholder="Buscar colaborador, DNI o locker"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-            />
+            <input className="input" aria-label="Buscar solicitudes" placeholder="Buscar colaborador, DNI o locker" value={query} onChange={(event) => setQuery(event.target.value)} />
             <select className="select" aria-label="Filtrar por estado" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
-              <option value="PENDIENTES">Pendientes</option>
-              <option value="CREADA">Creada</option>
-              <option value="EN_REVISION">En revisión</option>
-              <option value="APROBADA">Aprobada</option>
-              <option value="RECHAZADA">Rechazada</option>
-              <option value="TODAS">Todas</option>
+              <option value="PENDIENTES">Pendientes</option><option value="CREADA">Creada</option><option value="EN_REVISION">En revisión</option><option value="APROBADA">Aprobada</option><option value="ASIGNADA">Asignada</option><option value="RECHAZADA">Rechazada</option><option value="TODAS">Todas</option>
             </select>
-            <select className="select" aria-label="Filtrar por local" value={localFilter} onChange={(event) => setLocalFilter(event.target.value)}>
-              <option value="TODOS">Todos los locales</option>
-              {locals.map((item) => <option key={item} value={item}>{item}</option>)}
-            </select>
-            <select className="select" aria-label="Filtrar por área" value={areaFilter} onChange={(event) => setAreaFilter(event.target.value)}>
-              <option value="TODAS">Todas las áreas</option>
-              {areas.map((item) => <option key={item} value={item}>{item}</option>)}
-            </select>
+            <select className="select" aria-label="Filtrar por local" value={localFilter} onChange={(event) => setLocalFilter(event.target.value)}><option value="TODOS">Todos los locales</option>{locals.map((item) => <option key={item} value={item}>{item}</option>)}</select>
+            <select className="select" aria-label="Filtrar por área" value={areaFilter} onChange={(event) => setAreaFilter(event.target.value)}><option value="TODAS">Todas las áreas</option>{areas.map((item) => <option key={item} value={item}>{item}</option>)}</select>
             {hasFilters ? <button className="btn btn-secondary" type="button" onClick={clearFilters}>Limpiar</button> : null}
           </div>
         </div>
@@ -243,47 +225,22 @@ export default function SolicitudesPage() {
         {!loading && filtered.length > 0 ? (
           <div className="table-wrap">
             <table>
-              <thead>
-                <tr>
-                  <th>Fecha</th>
-                  <th>Colaborador</th>
-                  <th>DNI</th>
-                  <th>Locker</th>
-                  <th>Local / área</th>
-                  <th>Observación</th>
-                  <th>Evidencia</th>
-                  <th>Estado</th>
-                  <th>Acciones</th>
-                </tr>
-              </thead>
+              <thead><tr><th>Fecha</th><th>Colaborador</th><th>DNI</th><th>Locker</th><th>Local / área</th><th>Observación</th><th>Evidencia</th><th>Estado</th><th>Acciones</th></tr></thead>
               <tbody>
                 {filtered.map((row) => {
                   const eligible = isPending(row.estado);
+                  const approved = normalize(row.estado).toUpperCase() === 'APROBADA';
                   const busy = working === row.id;
                   return (
                     <tr key={row.id}>
-                      <td>{formatDateTime(row.createdAt)}</td>
-                      <td><strong>{row.colaboradorNombre || 'Sin nombre'}</strong></td>
-                      <td>{row.colaboradorDni || 'N/D'}</td>
-                      <td><strong>{row.lockerCodigo || '—'}</strong></td>
-                      <td>{[row.local, row.area].filter(Boolean).join(' · ') || '—'}</td>
-                      <td>{row.observaciones || '—'}</td>
-                      <td>
-                        {row.fotoLockerUrl ? (
-                          <a href={row.fotoLockerUrl} target="_blank" rel="noreferrer">Ver foto</a>
-                        ) : '—'}
-                      </td>
+                      <td>{formatDateTime(row.createdAt)}</td><td><strong>{row.colaboradorNombre || 'Sin nombre'}</strong></td><td>{row.colaboradorDni || 'N/D'}</td><td><strong>{row.lockerCodigo || '—'}</strong></td><td>{[row.local, row.area].filter(Boolean).join(' · ') || '—'}</td><td>{row.observaciones || '—'}</td>
+                      <td>{row.fotoLockerUrl ? <a href={row.fotoLockerUrl} target="_blank" rel="noreferrer">Ver foto</a> : '—'}</td>
                       <td><span className={`badge ${statusClass(row.estado)}`}>{statusLabel(row.estado)}</span></td>
                       <td>
                         {eligible ? (
-                          <div className="toolbar">
-                            <button className="btn btn-primary" disabled={Boolean(working)} onClick={() => act(row, 'aprobar')} type="button">
-                              {busy ? 'Procesando…' : 'Aprobar'}
-                            </button>
-                            <button className="btn btn-danger" disabled={Boolean(working)} onClick={() => act(row, 'rechazar')} type="button">
-                              {busy ? 'Procesando…' : 'Rechazar'}
-                            </button>
-                          </div>
+                          <div className="toolbar"><button className="btn btn-primary" disabled={Boolean(working)} onClick={() => act(row, 'aprobar')} type="button">{busy ? 'Procesando…' : 'Aprobar'}</button><button className="btn btn-danger" disabled={Boolean(working)} onClick={() => act(row, 'rechazar')} type="button">{busy ? 'Procesando…' : 'Rechazar'}</button></div>
+                        ) : approved && row.asignacionId ? (
+                          <Link className="btn btn-primary" href={`/lockers/entrega/${row.asignacionId}`}>Registrar entrega</Link>
                         ) : '—'}
                       </td>
                     </tr>
