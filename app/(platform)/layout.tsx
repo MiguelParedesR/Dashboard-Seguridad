@@ -4,6 +4,7 @@ import { getSession } from '@/lib/auth/session';
 
 export default async function PlatformLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
-  if (!session || session.role === 'colaborador') redirect('/login');
+  if (!session) redirect('/login');
+  if (session.role === 'colaborador') redirect('/colaborador');
   return <AppShell role={session.role} nombre={session.nombre}>{children}</AppShell>;
 }

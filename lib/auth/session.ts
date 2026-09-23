@@ -3,13 +3,13 @@ import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 
 export type StaffRole = 'admin' | 'cctv';
-export type AppRole = StaffRole | 'colaborador';
+export type CollaboratorRole = 'colaborador';
+export type AppRole = StaffRole | CollaboratorRole;
 export type AppSession = {
   sub: string;
   role: AppRole;
   nombre?: string;
   dni?: string;
-  colaboradorId?: string;
 };
 
 export const SESSION_COOKIE = 'tpp_session';
@@ -41,8 +41,16 @@ export function isStaffRole(role: unknown): role is StaffRole {
   return role === 'admin' || role === 'cctv';
 }
 
+export function isCollaboratorRole(role: unknown): role is CollaboratorRole {
+  return role === 'colaborador';
+}
+
 export function defaultStaffRoute(role: StaffRole) {
   return role === 'admin' ? '/dashboard' : '/lockers/solicitudes';
+}
+
+export function defaultAppRoute(role: AppRole) {
+  return isCollaboratorRole(role) ? '/colaborador' : defaultStaffRoute(role);
 }
 
 export async function issueSession(payload: AppSession) {
@@ -69,8 +77,7 @@ export async function readSessionToken(token?: string | null): Promise<AppSessio
       sub: String(payload.sub),
       role,
       nombre: payload.nombre ? String(payload.nombre) : undefined,
-      dni: payload.dni ? String(payload.dni) : undefined,
-      colaboradorId: payload.colaboradorId ? String(payload.colaboradorId) : undefined
+      dni: payload.dni ? String(payload.dni) : undefined
     };
   } catch {
     return null;

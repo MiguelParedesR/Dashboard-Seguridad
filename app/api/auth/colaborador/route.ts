@@ -5,28 +5,56 @@ import { issueSession, SESSION_COOKIE, sessionCookieOptions } from '@/lib/auth/s
 
 const schema = z.object({ dni: z.string().trim().regex(/^\d{8}$/) });
 
-export async function POST(request: NextRequest) {
-  const parsed = schema.safeParse(await request.json());
-  if (!parsed.success) return NextResponse.json({ error: 'DNI inválido' }, { status: 400 });
-  const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase
-    .from('colaboradores')
-    .select('id,nombre_completo,dni,activo')
-    .eq('dni', parsed.data.dni)
-    .eq('activo', true)
-    .limit(2);
-  if (error) return NextResponse.json({ error: 'No se pudo validar el acceso' }, { status: 500 });
-  const rows = data || [];
-  if (rows.length !== 1) return NextResponse.json({ error: 'Colaborador no registrado o inactivo' }, { status: 401 });
-  const colaborador = rows[0];
-  const token = await issueSession({
-    sub: colaborador.id,
-    colaboradorId: colaborador.id,
-    role: 'colaborador',
-    nombre: colaborador.nombre_completo,
-    dni: colaborador.dni
-  });
-  const response = NextResponse.json({ ok: true, redirectTo: '/colaborador' });
-  response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions());
+function json(body: unknown, status = 200) {
+  const response = NextResponse.json(body, { status });
+  response.headers.set('Cache-Control', 'no-store');
   return response;
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return json({ error: 'Solicitud inválida' }, 400);
+    }
+
+    const parsed = schema.safeParse(body);
+    if (!parsed.success) return json({ error: 'DNI inválido' }, 400);
+
+    const supabase = getSupabaseAdmin();
+    const { data, error } = await supabase
+      .from('colaboradores')
+      .select('id,nombre_completo,dni,activo')
+      .eq('dni', parsed.data.dni)
+      .limit(2);
+
+    if (error) throw error;
+    const rows = Array.isArray(data) ? data : [];
+    if (rows.length !== 1) return json({ error: 'Credencial no válida' }, 401);
+
+    const colaborador = rows[0] as {
+      id: string;
+      nombre_completo?: string | null;
+      dni?: string | null;
+      activo?: boolean | null;
+    };
+
+    if (!colaborador.activo) return json({ error: 'Credencial no válida' }, 401);
+
+    const token = await issueSession({
+      sub: colaborador.id,
+      role: 'colaborador',
+      nombre: colaborador.nombre_completo || undefined,
+      dni: colaborador.dni || parsed.data.dni
+    });
+
+    const response = json({ ok: true, redirectTo: '/colaborador' });
+    response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions());
+    return response;
+  } catch (error) {
+    console.error('[auth/colaborador]', error);
+    return json({ error: 'No se pudo validar el acceso' }, 500);
+  }
 }
