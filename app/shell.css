@@ -1,0 +1,146 @@
+.mobile-menu-btn,
+.sidebar-close,
+.sidebar-scrim {
+  display: none;
+}
+
+.brand-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.shell-role {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: rgba(255,255,255,.48);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: .01em;
+}
+
+.topbar-context {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.topbar-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: #30d158;
+  box-shadow: 0 0 0 3px rgba(48,209,88,.11);
+}
+
+@media (max-width: 1080px) and (min-width: 641px) {
+  .brand-row { justify-content: center; }
+  .sidebar-close { display: none !important; }
+}
+
+@media (max-width: 640px) {
+  .sidebar {
+    display: flex;
+    width: min(300px, calc(100vw - 42px));
+    padding: 18px 14px 16px;
+    transform: translateX(-104%);
+    transition: transform .22s cubic-bezier(.22,.61,.36,1);
+    box-shadow: 18px 0 48px rgba(0,0,0,.16);
+    background: rgba(248,248,250,.96);
+  }
+
+  .sidebar.open { transform: translateX(0); }
+
+  .sidebar.open .brand-copy,
+  .sidebar.open .nav-label,
+  .sidebar.open .nav-link span,
+  .sidebar.open .user-box {
+    display: block;
+  }
+
+  .sidebar.open .brand {
+    justify-content: flex-start;
+    padding-inline: 8px;
+  }
+
+  .sidebar.open .nav-link {
+    justify-content: flex-start;
+    padding-inline: 10px;
+  }
+
+  .sidebar-close {
+    display: grid;
+    width: 32px;
+    height: 32px;
+    place-items: center;
+    flex: 0 0 auto;
+    border: 1px solid var(--line-soft);
+    border-radius: 9px;
+    background: rgba(255,255,255,.72);
+    color: var(--text);
+  }
+
+  .sidebar-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 19;
+    display: block;
+    border: 0;
+    padding: 0;
+    background: rgba(17,17,19,.28);
+    backdrop-filter: blur(2px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .18s ease;
+  }
+
+  .sidebar-scrim.open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .mobile-menu-btn {
+    display: grid;
+    width: 34px;
+    height: 34px;
+    place-items: center;
+    border: 1px solid var(--line-soft);
+    border-radius: 9px;
+    background: rgba(255,255,255,.66);
+    color: var(--text);
+  }
+
+  .topbar {
+    gap: 10px;
+    justify-content: flex-start;
+    height: 54px;
+    padding-inline: 14px;
+  }
+
+  .topbar-context { flex: 1; }
+  .topbar-title {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .shell-role {
+    min-height: 24px;
+    padding-inline: 7px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .sidebar-scrim {
+    transition: none;
+  }
+}

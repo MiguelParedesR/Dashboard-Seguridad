@@ -1,0 +1,26 @@
+name: Next Platform CI
+
+on:
+  push:
+    branches: [modernization/next-platform]
+  pull_request:
+    branches: [master]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ci-service-role-placeholder
+      SESSION_SECRET: ci-session-secret-placeholder-at-least-32-characters
+      APP_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: QA + typecheck + build
+        run: npm run ci:smoke
