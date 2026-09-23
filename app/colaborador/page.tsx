@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
+import AppShell from '@/components/shell/AppShell';
 import ColaboradorLoginForm from '@/components/auth/ColaboradorLoginForm';
-import ColaboradorLogoutButton from '@/components/auth/ColaboradorLogoutButton';
 import { getSession, isCollaboratorRole } from '@/lib/auth/session';
 
 export default async function ColaboradorPage() {
@@ -12,21 +12,35 @@ export default async function ColaboradorPage() {
   const dniLabel = session.dni ? `••••${session.dni.slice(-4)}` : 'Validado';
 
   return (
-    <main className="login-page">
-      <section className="login-shell">
-        <div className="login-mark">TPP</div>
-        <h1>Sesión activa</h1>
-        <p>Tu identidad de colaborador está validada por el servidor. Las funciones operativas se habilitarán en las fases de migración correspondientes.</p>
-        <div className="field">
-          <label>Colaborador</label>
-          <div className="input" aria-readonly="true">{session.nombre || 'Colaborador'}</div>
+    <AppShell role={session.role} nombre={session.nombre}>
+      <div className="page-head">
+        <div>
+          <div className="eyebrow">Colaborador</div>
+          <h1>Bienvenido</h1>
+          <p>Tu sesión está protegida por el servidor. Desde aquí se integrarán las funciones operativas del colaborador en las siguientes fases.</p>
         </div>
-        <div className="field">
-          <label>DNI</label>
-          <div className="input" aria-readonly="true">{dniLabel}</div>
+      </div>
+
+      <section className="section" aria-labelledby="session-heading">
+        <div className="section-head">
+          <div>
+            <h2 id="session-heading">Acceso seguro</h2>
+            <p>La identidad visible proviene de la sesión HttpOnly validada en backend.</p>
+          </div>
+          <span className="badge success">Sesión activa</span>
         </div>
-        <ColaboradorLogoutButton />
+
+        <div className="form-grid">
+          <div className="field">
+            <label>Colaborador</label>
+            <div className="input" aria-readonly="true">{session.nombre || 'Colaborador'}</div>
+          </div>
+          <div className="field">
+            <label>DNI</label>
+            <div className="input" aria-readonly="true">{dniLabel}</div>
+          </div>
+        </div>
       </section>
-    </main>
+    </AppShell>
   );
 }
