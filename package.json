@@ -10,7 +10,8 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "ci:smoke": "npm run typecheck && npm run build"
+    "qa:platform": "node scripts/qa-platform.mjs",
+    "ci:smoke": "npm run qa:platform && npm run typecheck && npm run build"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.57.4",
