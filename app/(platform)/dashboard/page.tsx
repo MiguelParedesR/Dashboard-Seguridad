@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import { ChevronRight } from 'lucide-react';
 import { getSession } from '@/lib/auth/session';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
 
@@ -28,13 +29,31 @@ export default async function DashboardPage() {
     ['Inspecciones', inspecciones.count || 0, 'registros']
   ];
 
+  const flows = [
+    {
+      href: '/lockers',
+      title: 'Lockers',
+      description: 'Disponibilidad, solicitudes, entrega, devolución e incidencias de llaves.'
+    },
+    {
+      href: '/incidencias',
+      title: 'Incidencias',
+      description: `${incidentRows.length} informes registrados. Gestión operativa y seguimiento documental.`
+    },
+    {
+      href: '/mamparas',
+      title: 'Mamparas',
+      description: 'Inspecciones vehiculares, medidas, evidencias y trazabilidad.'
+    }
+  ];
+
   return (
     <main>
       <div className="page-head">
         <div>
           <div className="eyebrow">Operación consolidada</div>
           <h1>Seguridad, en una sola vista.</h1>
-          <p>Lockers, incidencias e inspecciones comparten una arquitectura moderna y una única experiencia operativa.</p>
+          <p>La información prioritaria aparece primero; cada flujo se abre desde una única superficie de trabajo.</p>
         </div>
       </div>
 
@@ -48,11 +67,20 @@ export default async function DashboardPage() {
       </div>
 
       <section className="section">
-        <div className="section-head"><div><h2>Flujos operativos</h2><p>Accesos directos a las áreas activas.</p></div></div>
-        <div className="grid-3">
-          <Link className="panel" href="/lockers"><h3>Lockers</h3><p>Disponibilidad, solicitudes, entrega, devolución e incidencias de llaves.</p></Link>
-          <Link className="panel" href="/incidencias"><h3>Incidencias</h3><p>{incidentRows.length} informes registrados. Gestión del dominio general recuperado desde Formulario-Mamparas.</p></Link>
-          <Link className="panel" href="/mamparas"><h3>Mamparas</h3><p>Inspecciones vehiculares, medidas, evidencias y trazabilidad.</p></Link>
+        <div className="section-head">
+          <div>
+            <h2>Flujos operativos</h2>
+            <p>Accesos directos, sin tarjetas ni contenedores innecesarios.</p>
+          </div>
+        </div>
+        <div className="flow-list">
+          {flows.map((flow) => (
+            <Link className="flow-link" href={flow.href} key={flow.href}>
+              <strong>{flow.title}</strong>
+              <span>{flow.description}</span>
+              <ChevronRight size={17} strokeWidth={1.8} aria-hidden="true" />
+            </Link>
+          ))}
         </div>
       </section>
     </main>
