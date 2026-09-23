@@ -129,12 +129,17 @@ export default function UsuarioSolicitudesView() {
 
     try {
       const supabase = await getClientOrThrow();
-      const { error: updateError } = await supabase
-        .from('solicitudes_locker')
-        .update({ estado: 'RECHAZADA' })
-        .eq('id', selected.id);
+      const operadorId = getOperadorIdOrThrow();
+      const { data: rpcData, error: rpcError } = await supabase.rpc('rpc_rechazar_solicitud', {
+        p_solicitud_id: selected.id,
+        p_operador_id: operadorId,
+        p_motivo: null
+      });
 
-      if (updateError) throw updateError;
+      if (rpcError) throw rpcError;
+      if (rpcData && typeof rpcData === 'object' && !Array.isArray(rpcData) && rpcData.success === false) {
+        throw new Error(rpcData.message || rpcData.mensaje || 'No se pudo rechazar la solicitud.');
+      }
 
       setSelectedId(null);
       await loadSolicitudes();
