@@ -1,66 +1,50 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getSupabaseAdmin } from '@/lib/supabase/admin';
 import { isApiError, requireApiRole } from '@/lib/auth/api';
+import { readKeyIncidents, resolveKeyIncident } from '@/lib/lockers/incidents';
 
 const resolveSchema = z.object({ incidenciaId: z.string().uuid() });
+
+function json(body: unknown, status = 200) {
+  const response = NextResponse.json(body, { status });
+  response.headers.set('Cache-Control', 'no-store');
+  return response;
+}
 
 export async function GET(request: NextRequest) {
   const auth = await requireApiRole(request, ['admin', 'cctv']);
   if (isApiError(auth)) return auth;
 
-  const supabase = getSupabaseAdmin();
-  const { data: incidencias, error } = await supabase
-    .from('incidencias_llaves')
-    .select('id,asignacion_id,movimiento_id,tipo,descripcion,resuelta,created_at,resolved_at')
-    .order('created_at', { ascending: false });
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-  const scoped = auth.role === 'cctv' ? (incidencias || []).filter((row) => !row.resuelta) : (incidencias || []);
-  const asignacionIds = [...new Set(scoped.map((row) => row.asignacion_id).filter(Boolean))];
-  const movimientoIds = [...new Set(scoped.map((row) => row.movimiento_id).filter(Boolean))];
-
-  const [{ data: asignaciones }, { data: movimientos }] = await Promise.all([
-    asignacionIds.length
-      ? supabase.from('asignaciones_locker').select('id,locker_id,colaborador_id,llaves_entregadas,llaves_devueltas,activa,colaboradores(nombre_completo,dni),lockers(codigo,local,area,tiene_candado,tiene_duplicado_llave)').in('id', asignacionIds)
-      : Promise.resolve({ data: [] as unknown[] }),
-    movimientoIds.length
-      ? supabase.from('llaves_movimientos').select('id,llaves_declaradas,llaves_esperadas,tipo,created_at').in('id', movimientoIds)
-      : Promise.resolve({ data: [] as unknown[] })
-  ]);
-
-  const asignacionMap = new Map((asignaciones || []).map((row: any) => [String(row.id), row]));
-  const movimientoMap = new Map((movimientos || []).map((row: any) => [String(row.id), row]));
-
-  const data = scoped.map((row: any) => {
-    const asignacion = asignacionMap.get(String(row.asignacion_id)) as any;
-    const movimiento = movimientoMap.get(String(row.movimiento_id)) as any;
-    const locker = Array.isArray(asignacion?.lockers) ? asignacion.lockers[0] : asignacion?.lockers;
-    const colaborador = Array.isArray(asignacion?.colaboradores) ? asignacion.colaboradores[0] : asignacion?.colaboradores;
-    return {
-      ...row,
-      estado: row.resuelta ? 'RESUELTA' : 'PENDIENTE',
-      locker: locker || null,
-      colaborador: colaborador || null,
-      llaves_esperadas: movimiento?.llaves_esperadas ?? null,
-      llaves_declaradas: movimiento?.llaves_declaradas ?? null,
-      llaves_devueltas: asignacion?.llaves_devueltas ?? null
-    };
-  });
-
-  return NextResponse.json({ data });
+  try {
+    const data = await readKeyIncidents();
+    return json({ data, generatedAt: new Date().toISOString() });
+  } catch (error) {
+    console.error('[lockers/incidencias:get]', error);
+    return json({ error: 'No se pudieron cargar las incidencias de llaves' }, 500);
+  }
 }
 
 export async function POST(request: NextRequest) {
   const auth = await requireApiRole(request, ['admin', 'cctv']);
   if (isApiError(auth)) return auth;
-  const parsed = resolveSchema.safeParse(await request.json());
-  if (!parsed.success) return NextResponse.json({ error: 'Incidencia inválida' }, { status: 400 });
 
-  const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase.rpc('fn_resolver_incidencias_llaves', {
-    p_incidencia_id: parsed.data.incidenciaId
-  });
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data ?? { success: true });
+  try {
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return json({ error: 'Incidencia inválida' }, 400);
+    }
+
+    const parsed = resolveSchema.safeParse(body);
+    if (!parsed.success) return json({ error: 'Incidencia inválida' }, 400);
+
+    const result = await resolveKeyIncident(parsed.data.incidenciaId);
+    if (result === 'not_found') return json({ error: 'Incidencia no encontrada' }, 404);
+    if (result === 'conflict') return json({ error: 'La incidencia ya fue resuelta o cambió de estado' }, 409);
+    return json({ success: true });
+  } catch (error) {
+    console.error('[lockers/incidencias:post]', error);
+    return json({ error: 'No se pudo resolver la incidencia' }, 500);
+  }
 }

@@ -7,6 +7,7 @@ import {
   BarChart3,
   ClipboardCheck,
   FileWarning,
+  History,
   KeyRound,
   LayoutDashboard,
   LockKeyhole,
@@ -40,7 +41,8 @@ const groups = [
     items: [
       { label: 'Vista general', href: '/lockers', icon: LockKeyhole, roles: ['admin', 'cctv'], exact: true },
       { label: 'Solicitudes', href: '/lockers/solicitudes', icon: KeyRound, roles: ['admin', 'cctv'], exact: false },
-      { label: 'Incidencias de llaves', href: '/lockers/incidencias', icon: ShieldCheck, roles: ['admin', 'cctv'], exact: false }
+      { label: 'Incidencias de llaves', href: '/lockers/incidencias', icon: ShieldCheck, roles: ['admin', 'cctv'], exact: false },
+      { label: 'Historial', href: '/lockers/historial', icon: History, roles: ['admin', 'cctv'], exact: false }
     ]
   },
   {
