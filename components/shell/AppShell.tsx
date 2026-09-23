@@ -80,7 +80,8 @@ export default function AppShell({ children, role, nombre }: { children: React.R
   }
 
   const brandSubtitle = role === 'colaborador' ? 'Portal colaborador' : 'Centro de Control';
-  const topbarTitle = role === 'colaborador' ? 'Portal del colaborador' : 'Operación integral';
+  const currentItem = groups.flatMap((group) => group.items).find((item) => isActivePath(pathname, item));
+  const topbarTitle = currentItem?.label || (role === 'colaborador' ? 'Portal del colaborador' : 'Operación integral');
 
   return (
     <div className="app-shell">
@@ -94,11 +95,14 @@ export default function AppShell({ children, role, nombre }: { children: React.R
       <aside aria-label="Navegación principal" className={`sidebar ${mobileOpen ? 'open' : ''}`}>
         <div className="brand-row">
           <div className="brand">
-            <strong>TPP Seguridad</strong>
-            <span>{brandSubtitle}</span>
+            <div className="brand-mark" aria-hidden="true">TPP</div>
+            <div className="brand-copy">
+              <strong>Seguridad</strong>
+              <span>{brandSubtitle}</span>
+            </div>
           </div>
           <button className="sidebar-close" aria-label="Cerrar menú" onClick={() => setMobileOpen(false)} type="button">
-            <X size={18} />
+            <X size={17} />
           </button>
         </div>
 
@@ -121,7 +125,7 @@ export default function AppShell({ children, role, nombre }: { children: React.R
                       key={item.href}
                       onClick={() => setMobileOpen(false)}
                     >
-                      <Icon size={17} strokeWidth={1.9} />
+                      <Icon size={16} strokeWidth={1.8} />
                       <span>{item.label}</span>
                     </Link>
                   );
@@ -135,8 +139,9 @@ export default function AppShell({ children, role, nombre }: { children: React.R
         <div className="user-box">
           <strong>{nombre || 'Usuario'}</strong>
           <span>{roleLabels[role]}</span>
-          <button className="btn btn-secondary" style={{ marginTop: 12, padding: '8px 12px' }} onClick={logout} type="button">
-            <LogOut size={14} style={{ verticalAlign: '-2px', marginRight: 6 }} /> Salir
+          <button className="btn btn-secondary" style={{ marginTop: 12 }} onClick={logout} type="button">
+            <LogOut size={13} />
+            Salir
           </button>
         </div>
       </aside>
@@ -150,9 +155,12 @@ export default function AppShell({ children, role, nombre }: { children: React.R
             onClick={() => setMobileOpen(true)}
             type="button"
           >
-            <Menu size={19} />
+            <Menu size={18} />
           </button>
-          <div className="topbar-title">{topbarTitle}</div>
+          <div className="topbar-context">
+            <span className="topbar-dot" aria-hidden="true" />
+            <div className="topbar-title">{topbarTitle}</div>
+          </div>
           <div className="shell-role">{roleLabels[role]}</div>
         </header>
         <div className="content">{children}</div>
