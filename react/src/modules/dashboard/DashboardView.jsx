@@ -1,4 +1,5 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import './dashboard.css';
 
 const MODULE_KEY = 'dashboard';
@@ -19,17 +20,42 @@ async function countTableRows(client, table, filters = {}) {
       query = query.eq(key, value);
     });
     const { count, error } = await query;
-    if (error) {
-      if (isMissingTableError(error)) return null;
-      return null;
-    }
+    if (error || isMissingTableError(error)) return null;
     return typeof count === 'number' ? count : null;
-  } catch (err) {
+  } catch {
     return null;
   }
 }
 
+const QUICK_ACTIONS = [
+  {
+    title: 'Incidencias CCTV',
+    description: 'Revisar y resolver incidencias de llaves.',
+    meta: 'Operación CCTV',
+    to: '/incidencias'
+  },
+  {
+    title: 'Lockers',
+    description: 'Gestionar solicitudes, asignaciones y estado de lockers.',
+    meta: 'Control operativo',
+    to: '/lockers/vista'
+  },
+  {
+    title: 'Penalidades',
+    description: 'Registrar penalidades, revisar evidencias y consultar históricos.',
+    meta: 'Cumplimiento',
+    to: '/html/penalidades/penalidades.html'
+  },
+  {
+    title: 'Incidencias y Mamparas',
+    description: 'Abrir el sistema de informes, inspecciones y documentos.',
+    meta: 'Formulario-Mamparas',
+    href: 'https://miguelparedesr.github.io/Formulario-Mamparas/'
+  }
+];
+
 export default function DashboardView() {
+  const navigate = useNavigate();
   const [metrics, setMetrics] = useState({
     usuarios: null,
     incidencias: null,
@@ -78,68 +104,98 @@ export default function DashboardView() {
       setLoading(false);
     };
 
-    loadMetrics();
-
-    return () => {
-      active = false;
-    };
+    void loadMetrics();
+    return () => { active = false; };
   }, []);
+
+  const metricRows = [
+    { key: 'usuarios', label: 'Usuarios', note: 'Personal registrado', to: '/html/admin/admin.html' },
+    { key: 'incidencias', label: 'Incidencias', note: 'Eventos en seguimiento', to: '/incidencias' },
+    { key: 'penalidades', label: 'Penalidades', note: 'Registros aplicados', to: '/html/penalidades/penalidades.html' },
+    { key: 'turnos', label: 'Turnos de hoy', note: 'Cobertura registrada', to: '/html/rol-servicios/turnos.html' }
+  ];
+
+  const openAction = (action) => {
+    if (action.href) {
+      window.location.href = action.href;
+      return;
+    }
+    navigate(action.to);
+  };
 
   return (
     <section className="dashboard">
-      <div className="page-header">
+      <header className="dashboard-hero">
         <div>
-          <h1 className="page-title">Dashboard Integral</h1>
-          <p className="page-subtitle">Vision de seguridad en tiempo real y control operativo.</p>
+          <p className="dashboard-kicker">Terminales Portuarios Peruanos · Seguridad</p>
+          <h1>Centro de Control</h1>
+          <p>Consulta el estado operativo y entra directamente a la tarea que necesitas gestionar.</p>
         </div>
-        <button className="btn">Nuevo reporte</button>
-      </div>
+        <span className="dashboard-health"><i /> Plataforma operativa</span>
+      </header>
 
-      <div className="grid cols-4">
-        <div className="metric-card">
-          <span className="metric-label">Usuarios activos</span>
-          <strong className="metric-value">{loading ? '...' : metrics.usuarios ?? '--'}</strong>
-          <span className="metric-note">Personal operativo actual</span>
-        </div>
-        <div className="metric-card">
-          <span className="metric-label">Incidencias CCTV</span>
-          <strong className="metric-value">{loading ? '...' : metrics.incidencias ?? '--'}</strong>
-          <span className="metric-note">Eventos en seguimiento</span>
-        </div>
-        <div className="metric-card">
-          <span className="metric-label">Penalidades</span>
-          <strong className="metric-value">{loading ? '...' : metrics.penalidades ?? '--'}</strong>
-          <span className="metric-note">Casos registrados</span>
-        </div>
-        <div className="metric-card accent">
-          <span className="metric-label">Turnos activos</span>
-          <strong className="metric-value">{loading ? '...' : metrics.turnos ?? '--'}</strong>
-          <span className="metric-note">Hoy en curso</span>
-        </div>
-      </div>
+      <section className="metric-strip" aria-label="Indicadores principales">
+        {metricRows.map((item) => (
+          <button key={item.key} type="button" className="metric-row" onClick={() => navigate(item.to)}>
+            <span className="metric-copy">
+              <strong>{item.label}</strong>
+              <small>{item.note}</small>
+            </span>
+            <span className="metric-value">{loading ? '…' : metrics[item.key] ?? '--'}</span>
+            <span className="metric-chevron" aria-hidden="true">›</span>
+          </button>
+        ))}
+      </section>
 
-      <div className="grid cols-2 dashboard-panels">
-        <div className="card panel-hero">
-          <h2>Resumen Diario</h2>
-          <p>Supervisa tendencias, picos y cumplimiento por unidad.</p>
-          <div className="sparkline">
-            <span></span>
-            <span></span>
-            <span></span>
-            <span></span>
-            <span></span>
-            <span></span>
-            <span></span>
+      <div className="dashboard-columns">
+        <section className="dashboard-section">
+          <div className="dashboard-section-head">
+            <div>
+              <span>Operación</span>
+              <h2>Accesos rápidos</h2>
+            </div>
+            <small>Todo es interactivo</small>
           </div>
-        </div>
-        <div className="card panel-alerts">
-          <h2>Alertas y notificaciones</h2>
-          <ul>
-            <li>Sin alertas criticas en las ultimas 6 horas.</li>
-            <li>Penalidades pendientes de validacion: 3.</li>
-            <li>Canal CCTV estable y sin caidas.</li>
-          </ul>
-        </div>
+
+          <div className="operation-list">
+            {QUICK_ACTIONS.map((action) => (
+              <button key={action.title} type="button" className="operation-row" onClick={() => openAction(action)}>
+                <span>
+                  <strong>{action.title}</strong>
+                  <small>{action.description}</small>
+                </span>
+                <span className="operation-meta">{action.meta}<b>›</b></span>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="dashboard-section">
+          <div className="dashboard-section-head">
+            <div>
+              <span>Estado</span>
+              <h2>Supervisión</h2>
+            </div>
+          </div>
+
+          <div className="supervision-list">
+            <button type="button" onClick={() => navigate('/lockers/solicitudes')}>
+              <span className="supervision-dot ok" />
+              <span><strong>Solicitudes de locker</strong><small>Revisar pendientes y entregas.</small></span>
+              <b>›</b>
+            </button>
+            <button type="button" onClick={() => navigate('/html/penalidades/excel.html')}>
+              <span className="supervision-dot info" />
+              <span><strong>Reportes Excel</strong><small>Asistencia y penalidades exportables.</small></span>
+              <b>›</b>
+            </button>
+            <button type="button" onClick={() => navigate('/html/admin/lockers-config.html')}>
+              <span className="supervision-dot neutral" />
+              <span><strong>Configuración</strong><small>Locales y capacidad de lockers.</small></span>
+              <b>›</b>
+            </button>
+          </div>
+        </section>
       </div>
     </section>
   );
