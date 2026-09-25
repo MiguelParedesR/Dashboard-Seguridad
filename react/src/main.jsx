@@ -1,6 +1,7 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import './services/config.js';
+import './styles/tokens.css';
 import './styles/app.css';
 import App from './app/App.jsx';
 
