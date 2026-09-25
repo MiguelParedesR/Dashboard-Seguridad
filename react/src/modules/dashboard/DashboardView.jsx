@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { getIncidenciasLlaves } from '../../app-usuario/usuarioApi.js';
 import './dashboard.css';
 
 const MODULE_KEY = 'dashboard';
@@ -85,11 +86,13 @@ export default function DashboardView() {
       const penalidadesClient = getClientForTable?.('penalidades_aplicadas', MODULE_KEY);
       const incidenciasClient = getClientForTable?.('tardanzas_importadas', MODULE_KEY);
 
-      const [usuarios, penalidades, incidencias] = await Promise.all([
+      const [usuarios, penalidades, incidenciasRows] = await Promise.all([
         countTableRows(usuariosClient, 'agentes_seguridad'),
         countTableRows(penalidadesClient, 'penalidades_aplicadas'),
-        countTableRows(incidenciasClient, 'tardanzas_importadas')
+        getIncidenciasLlaves().catch(() => [])
       ]);
+
+      const incidencias = Array.isArray(incidenciasRows) ? incidenciasRows.length : null;
 
       let turnos = null;
       if (incidenciasClient) {
@@ -112,7 +115,7 @@ export default function DashboardView() {
     { key: 'usuarios', label: 'Usuarios', note: 'Personal registrado', to: '/html/admin/admin.html' },
     { key: 'incidencias', label: 'Incidencias', note: 'Eventos en seguimiento', to: '/incidencias' },
     { key: 'penalidades', label: 'Penalidades', note: 'Registros aplicados', to: '/html/penalidades/penalidades.html' },
-    { key: 'turnos', label: 'Turnos de hoy', note: 'Cobertura registrada', to: '/html/rol-servicios/turnos.html' }
+    { key: 'turnos', label: 'Asistencias hoy', note: 'Registros de servicio del día', to: '/html/penalidades/excel.html' }
   ];
 
   const openAction = (action) => {
