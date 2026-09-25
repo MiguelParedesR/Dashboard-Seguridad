@@ -261,10 +261,10 @@ export default function Sidebar() {
         <div className="sidebar-brand">
           <div className="brand-mark">TPP</div>
           <div className="brand-text">
-            <span className="brand-title">Dashboard</span>
-            <span className="brand-sub">Seguridad Integral</span>
+            <span className="brand-title">Seguridad</span>
+            <span className="brand-sub">Operaciones TPP</span>
           </div>
-          <button className="collapse-btn" type="button" onClick={() => setCollapsed((prev) => !prev)}>
+          <button className="collapse-btn" type="button" onClick={() => setCollapsed((prev) => !prev)} aria-label={collapsed ? "Expandir menú" : "Contraer menú"}>
             <span className="collapse-dot"></span>
           </button>
           <button
