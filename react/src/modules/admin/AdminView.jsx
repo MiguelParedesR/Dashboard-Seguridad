@@ -47,7 +47,7 @@ export default function AdminView() {
 
         const { data, error: queryError } = await client
           .from('usuarios')
-          .select('id,nombre,nombre_completo,rol,estado')
+          .select('*')
           .order('id', { ascending: true });
 
         if (queryError) throw queryError;
